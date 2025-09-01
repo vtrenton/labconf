@@ -1,0 +1,16 @@
+# rolling-reboot.yml
+- name: Rolling reboot of all cluster nodes
+  hosts: picluster
+  become: true
+  gather_facts: false
+  serial: 1        # do one host at a time
+
+  tasks:
+    - name: Reboot the host
+      ansible.builtin.reboot:
+        reboot_timeout: 1800   # seconds to wait until node is back
+        post_reboot_delay: 10  # wait a bit after boot before continuing
+
+    - name: Confirm node is back up
+      ansible.builtin.ping:
+

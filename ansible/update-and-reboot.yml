@@ -1,0 +1,34 @@
+# update-and-reboot.yml
+- name: Update all hosts and reboot if kernel changed
+  hosts: picluster
+  become: true
+  gather_facts: false
+  serial: 1   # reboot hosts one at a time (important for clusters)
+
+  tasks:
+    - name: Update APT cache
+      ansible.builtin.apt:
+        update_cache: yes
+
+    - name: Upgrade all packages
+      ansible.builtin.apt:
+        upgrade: dist
+        autoremove: yes
+        autoclean: yes
+      register: apt_result
+
+    - name: Get running kernel version
+      ansible.builtin.command: uname -r
+      register: running_kernel
+      changed_when: false
+
+    - name: Get newest installed kernel version
+      ansible.builtin.shell: "ls -1 /lib/modules | sort -V | tail -1"
+      register: installed_kernel
+      changed_when: false
+
+    - name: Reboot if kernel version changed
+      ansible.builtin.reboot:
+      when:
+        - apt_result is changed
+        - installed_kernel.stdout | trim != running_kernel.stdout | trim

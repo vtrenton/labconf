@@ -1,0 +1,1 @@
+podman run -d --name bind9 -e TZ=CST -p 53:53/tcp -p 53:53/udp -v /bind/config/named.conf:/etc/bind/named.conf -v /bind/cache/:/var/cache/bind -v /bind/zones/:/etc/bind/zones ubuntu/bind9:latest
