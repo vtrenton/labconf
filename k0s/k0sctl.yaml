@@ -1,0 +1,132 @@
+apiVersion: k0sctl.k0sproject.io/v1beta1
+kind: Cluster
+metadata:
+  name: k0s-cluster
+  user: admin
+spec:
+  hosts:
+  - ssh:
+      address: 10.0.0.11
+      user: admin
+      port: 22
+      keyPath: ~/.ssh/id_rsa
+    role: controller
+  - ssh:
+      address: 10.0.0.12
+      user: admin
+      port: 22
+      keyPath: ~/.ssh/id_rsa
+    role: controller
+  - ssh:
+      address: 10.0.0.13
+      user: admin
+      port: 22
+      keyPath: ~/.ssh/id_rsa
+    role: controller
+  - ssh:
+      address: 10.0.0.14
+      user: admin
+      port: 22
+      keyPath: ~/.ssh/id_rsa
+    role: worker
+  - ssh:
+      address: 10.0.0.15
+      user: admin
+      port: 22
+      keyPath: ~/.ssh/id_rsa
+    role: worker
+  - ssh:
+      address: 10.0.0.16
+      user: admin
+      port: 22
+      keyPath: ~/.ssh/id_rsa
+    role: worker
+  - ssh:
+      address: 10.0.0.17
+      user: admin
+      port: 22
+      keyPath: ~/.ssh/id_rsa
+    role: worker
+  k0s:
+    version: v1.33.4+k0s.0
+    config:
+      apiVersion: k0s.k0sproject.io/v1beta1
+      kind: Cluster
+      metadata:
+        name: k0s
+      spec:
+        network:
+          kubeProxy:
+            disabled: true
+          podCIDR: 10.244.0.0/16
+          provider: custom
+          serviceCIDR: 10.96.0.0/12
+        extensions:
+          helm:
+            concurrencyLevel: 5
+            repositories:
+              - name: cilium
+                url: https://helm.cilium.io
+              - name: traefik
+                url: https://traefik.github.io/charts
+            charts:
+              - name: cilium
+                chartname: cilium/cilium
+                namespace: cilium
+                order: 1
+                values: |
+                  kubeProxyReplacement: true
+                  nodePort:
+                    enabled: true
+                  externalIPs:
+                    enabled: true
+                  hostPort:
+                    enabled: true
+                  socketLB:
+                    enabled: true
+              - name: traefik
+                chartname: traefik/traefik
+                namespace: traefik
+                order: 2
+                values: |
+                  providers:
+                    kubernetesIngress:
+                      enabled: true
+                      ingressClass: traefik
+                    kubernetesGateway:
+                      enabled: true
+                  ingressClass:
+                    enabled: true
+                    isDefaultClass: true
+                    name: traefik
+                  gatewayClass:
+                    enabled: true
+                    name: traefik
+                  gateway:
+                    enabled: true
+                    namespacePolicy: All
+        storage:
+          type: etcd
+        telemetry:
+          enabled: false
+  options:
+    wait:
+      enabled: true
+    drain:
+      enabled: true
+      gracePeriod: 2m0s
+      timeout: 5m0s
+      force: true
+      ignoreDaemonSets: true
+      deleteEmptyDirData: true
+      podSelector: ""
+      skipWaitForDeleteTimeout: 0s
+    concurrency:
+      limit: 30
+      workerDisruptionPercent: 10
+      uploads: 5
+    evictTaint:
+      enabled: false
+      taint: k0sctl.k0sproject.io/evict=true
+      effect: NoExecute
+      controllerWorkers: false

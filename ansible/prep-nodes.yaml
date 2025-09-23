@@ -1,0 +1,25 @@
+# prep-nodes.yml
+- name: Prepare nodes for cgroup support
+  hosts: all
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Read current cmdline.txt
+      ansible.builtin.slurp:
+        src: /boot/firmware/cmdline.txt
+      register: cmdline_raw
+
+    - name: Ensure cgroup parameters are present
+      ansible.builtin.copy:
+        dest: /boot/firmware/cmdline.txt
+        content: "{{ (cmdline_raw.content | b64decode).rstrip() }}{{ ' cgroup_enable=cpuset cgroup_enable=memory cgroup_memory=1' if not (cmdline_raw.content | b64decode) is search('cgroup_enable=cpuset') else '' }}\n"
+        owner: root
+        group: root
+        mode: '0644'
+      when: "'cgroup_enable=cpuset' not in (cmdline_raw.content | b64decode)"
+
+    - name: Reboot node if cmdline.txt changed
+      ansible.builtin.reboot:
+      when: "'cgroup_enable=cpuset' not in (cmdline_raw.content | b64decode)"
+
