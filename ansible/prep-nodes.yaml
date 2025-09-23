@@ -1,8 +1,13 @@
 # prep-nodes.yml
-- name: Prepare nodes for cgroup support
+- name: Prepare nodes and install cri-tools
   hosts: all
   become: true
-  gather_facts: false
+  gather_facts: true
+
+  vars:
+    kubic_repo_url: "http://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/Debian_Unstable/ /"
+    kubic_key_url: "https://download.opensuse.org/repositories/devel:kubic:libcontainers:stable/Debian_Unstable/Release.key"
+    kubic_repo_filename: "devel_kubic_libcontainers_stable"
 
   tasks:
     - name: Read current cmdline.txt
@@ -10,16 +15,49 @@
         src: /boot/firmware/cmdline.txt
       register: cmdline_raw
 
-    - name: Ensure cgroup parameters are present
+    - name: Ensure cgroup parameters are present (append with leading space)
       ansible.builtin.copy:
         dest: /boot/firmware/cmdline.txt
-        content: "{{ (cmdline_raw.content | b64decode).rstrip() }}{{ ' cgroup_enable=cpuset cgroup_enable=memory cgroup_memory=1' if not (cmdline_raw.content | b64decode) is search('cgroup_enable=cpuset') else '' }}\n"
+        content: >-
+          {{ (cmdline_raw.content | b64decode).rstrip() }}
+          {{ ' cgroup_enable=cpuset cgroup_enable=memory cgroup_memory=1'
+             if ('cgroup_enable=cpuset' not in (cmdline_raw.content | b64decode))
+             else '' }}
+          {{ '\n' }}
         owner: root
         group: root
         mode: '0644'
       when: "'cgroup_enable=cpuset' not in (cmdline_raw.content | b64decode)"
+      notify: Reboot node
 
-    - name: Reboot node if cmdline.txt changed
+    - name: Add OBS Kubic repo key (gpg dearmored to trusted.gpg.d)
+      ansible.builtin.apt_key:
+        url: "{{ kubic_key_url }}"
+        state: present
+
+    - name: Add OBS Kubic Debian Unstable repository for libcontainers/cri-tools
+      ansible.builtin.apt_repository:
+        repo: "deb {{ kubic_repo_url }}"
+        filename: "{{ kubic_repo_filename }}"
+        state: present
+        update_cache: yes
+
+    - name: Install cri-tools from OBS repo
+      ansible.builtin.apt:
+        name: cri-tools
+        state: present
+        update_cache: yes
+
+    - name: Install vim and dig from standard repo
+      ansible.builtin.apt:
+        name:
+          - vim
+          - dnsutils
+        state: present
+        update_cache: yes
+
+  handlers:
+    - name: Reboot node
       ansible.builtin.reboot:
-      when: "'cgroup_enable=cpuset' not in (cmdline_raw.content | b64decode)"
+        reboot_timeout: 1800
 
