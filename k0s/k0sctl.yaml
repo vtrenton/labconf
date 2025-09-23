@@ -10,19 +10,25 @@ spec:
       user: admin
       port: 22
       keyPath: ~/.ssh/id_rsa
-    role: controller
+    role: controller+worker
+    installFlags:
+        - "--kubelet-extra-args=--register-with-taints=node-role.kubernetes.io/control-plane=:NoSchedule"
   - ssh:
       address: 10.0.0.12
       user: admin
       port: 22
       keyPath: ~/.ssh/id_rsa
-    role: controller
+    role: controller+worker
+    installFlags:
+        - "--kubelet-extra-args=--register-with-taints=node-role.kubernetes.io/control-plane=:NoSchedule"
   - ssh:
       address: 10.0.0.13
       user: admin
       port: 22
       keyPath: ~/.ssh/id_rsa
-    role: controller
+    role: controller+worker
+    installFlags:
+        - "--kubelet-extra-args=--register-with-taints=node-role.kubernetes.io/control-plane=:NoSchedule"
   - ssh:
       address: 10.0.0.14
       user: admin
@@ -55,12 +61,16 @@ spec:
       metadata:
         name: k0s
       spec:
+      #  api:
+      #    address: 10.0.0.10
+      #    sans:
+      #    - 10.0.0.10
         network:
           kubeProxy:
-            disabled: true
-          podCIDR: 10.244.0.0/16
+            disabled: false
+            mode: nftables
           provider: custom
-          serviceCIDR: 10.96.0.0/12
+          serviceCIDR: 10.43.0.0/16
         extensions:
           helm:
             concurrencyLevel: 5
@@ -75,15 +85,33 @@ spec:
                 namespace: cilium
                 order: 1
                 values: |
-                  kubeProxyReplacement: true
-                  nodePort:
+                  tolerations:
+                    - key: "node-role.kubernetes.io/control-plane"
+                      operator: "Exists"
+                      effect: "NoSchedule"
+                    - key: "node-role.kubernetes.io/master"
+                      operator: "Exists"
+                      effect: "NoSchedule"
+                    - key: "node.kubernetes.io/not-ready"
+                      operator: "Exists"
+                      effect: "NoSchedule"
+                    - key: "node.kubernetes.io/not-ready"
+                      operator: "Exists"
+                      effect: "NoExecute"
+                  ipam:
+                    mode: cluster-pool
+                    operator:
+                      clusterPoolIPv4PodCIDRList:
+                        - 10.42.0.0/16
+                      clusterPoolIPv4MaskSize: 24
+                  cluster:
+                    name: cilium-cluster
+                  hubble:
                     enabled: true
-                  externalIPs:
-                    enabled: true
-                  hostPort:
-                    enabled: true
-                  socketLB:
-                    enabled: true
+                    relay:
+                      enabled: true
+                    ui:
+                      enabled: true
               - name: traefik
                 chartname: traefik/traefik
                 namespace: traefik

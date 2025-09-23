@@ -28,3 +28,16 @@ picluster:
       ansible_host: 10.0.0.17
       ansible_user: admin
       ansible_ssh_private_key_file: ~/.ssh/id_rsa
+
+masters:
+  hosts:
+    kubemaster1:
+    kubemaster2:
+    kubemaster3:
+
+workers:
+  hosts:
+    kubeworker1:
+    kubeworker2:
+    kubeworker3:
+    kubeworker4:
