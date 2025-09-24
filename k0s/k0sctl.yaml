@@ -77,8 +77,6 @@ spec:
             repositories:
               - name: cilium
                 url: https://helm.cilium.io
-              - name: traefik
-                url: https://traefik.github.io/charts
             charts:
               - name: cilium
                 chartname: cilium/cilium
@@ -106,33 +104,33 @@ spec:
                       clusterPoolIPv4MaskSize: 24
                   cluster:
                     name: cilium-cluster
+                  envoy:
+                    enabled: false
+                  ingressController:
+                    enabled: false
+                  gatewayAPI:
+                    enabled: false
+                  envoyConfig:
+                    enabled: false
+                  loadBalancer:
+                    l7:
+                      backend: none
                   hubble:
-                    enabled: true
+                    enabled: false
                     relay:
-                      enabled: true
+                      enabled: false
                     ui:
-                      enabled: true
-              - name: traefik
-                chartname: traefik/traefik
-                namespace: traefik
-                order: 2
-                values: |
-                  providers:
-                    kubernetesIngress:
-                      enabled: true
-                      ingressClass: traefik
-                    kubernetesGateway:
-                      enabled: true
-                  ingressClass:
-                    enabled: true
-                    isDefaultClass: true
-                    name: traefik
-                  gatewayClass:
-                    enabled: true
-                    name: traefik
-                  gateway:
-                    enabled: true
-                    namespacePolicy: All
+                      enabled: false
+                  prometheus:
+                    enabled: false
+                  operator:
+                    prometheus:
+                      enabled: false
+                    replicas: 1 
+                  bgpControlPlane:
+                    enabled: false
+                  externalWorkloads:
+                    enabled: false
         storage:
           type: etcd
         telemetry:
