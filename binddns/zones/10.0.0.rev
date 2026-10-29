@@ -1,5 +1,5 @@
 $TTL 86400      ; Default TTL
-@       IN      SOA     labns.starfleet.lan. admin.starfleet.lan. (
+@       IN      SOA     labns.labnet.lan. admin.labnet.lan. (
                         2024012301  ; Serial
                         3600        ; Refresh
                         1800        ; Retry
@@ -7,22 +7,22 @@ $TTL 86400      ; Default TTL
                         86400 )     ; Minimum TTL
 
                 ; Name Server Information
-@       IN      NS      labns.starfleet.lan.
+@       IN      NS      labns.labnet.lan.
 
                 ; PTR Records
-1       IN      PTR     gateway.starfleet.lan.
-5       IN      PTR     labns.starfleet.lan.
-11      IN      PTR     kubemaster1.starfleet.lan.
-12      IN      PTR     kubemaster2.starfleet.lan.
-13      IN      PTR     kubemaster3.starfleet.lan.
-15      IN      PTR     kubeworker1.starfleet.lan.
-16      IN      PTR     kubeworker2.starfleet.lan.
-17      IN      PTR     kubeworker3.starfleet.lan.
-18      IN      PTR     kubeworker4.starfleet.lan.
-160     IN      PTR     mothership0.starfleet.lan.
-161     IN      PTR     mothership1.starfleet.lan.
-162     IN      PTR     mothership2.starfleet.lan.
-165     IN      PTR     mothership.starfleet.lan.
+1       IN      PTR     gateway.labnet.lan.
+5       IN      PTR     labns.labnet.lan.
+11      IN      PTR     kubemaster1.labnet.lan.
+12      IN      PTR     kubemaster2.labnet.lan.
+13      IN      PTR     kubemaster3.labnet.lan.
+14      IN      PTR     kubeworker1.labnet.lan.
+15      IN      PTR     kubeworker2.labnet.lan.
+16      IN      PTR     kubeworker3.labnet.lan.
+17      IN      PTR     kubeworker4.labnet.lan.
+160     IN      PTR     infracluster.labnet.lan.
+161     IN      PTR     infra1.labnet.lan.
+162     IN      PTR     infra2.labnet.lan.
+163     IN      PTR     infra3.labnet.lan.
 
 ; end of zone file
 

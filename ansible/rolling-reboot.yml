@@ -3,7 +3,7 @@
   hosts: picluster
   become: true
   gather_facts: false
-  serial: 1        # do one host at a time
+#  serial: 1        # do one host at a time
 
   tasks:
     - name: Reboot the host

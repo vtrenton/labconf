@@ -54,7 +54,7 @@ spec:
       keyPath: ~/.ssh/id_rsa
     role: worker
   k0s:
-    version: v1.33.4+k0s.0
+    version: v1.36.1+k0s.0
     config:
       apiVersion: k0s.k0sproject.io/v1beta1
       kind: Cluster
@@ -69,7 +69,6 @@ spec:
         network:
           kubeProxy:
             disabled: true
-            mode: nftables
           provider: custom
           serviceCIDR: 10.43.0.0/16
         extensions:
@@ -131,17 +130,17 @@ spec:
                       backend: none
 
                   hubble:
-                    enabled: false
+                    enabled: true
                     relay:
-                      enabled: false
+                      enabled: true
                     ui:
-                      enabled: false
+                      enabled: true
 
                   prometheus:
-                    enabled: false
+                    enabled: true
                   operator:
                     prometheus:
-                      enabled: false
+                      enabled: true
                     replicas: 1 
 
                   bgpControlPlane:

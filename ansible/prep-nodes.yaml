@@ -9,7 +9,12 @@
     kubic_key_url: "https://download.opensuse.org/repositories/devel:kubic:libcontainers:stable/Debian_Unstable/Release.key"
     kubic_repo_filename: "devel_kubic_libcontainers_stable"
 
+    k3s_mount_device: "/dev/sda"
+    k3s_mount_point: "/var/lib/k3s"
+    k3s_fstype: "ext4"
+
   tasks:
+    # ----- Boot cmdline flags (cgroups) -----
     - name: Read current cmdline.txt
       ansible.builtin.slurp:
         src: /boot/firmware/cmdline.txt
@@ -30,6 +35,7 @@
       when: "'cgroup_enable=cpuset' not in (cmdline_raw.content | b64decode)"
       notify: Reboot node
 
+    # ----- OBS repo + cri-tools -----
     - name: Add OBS Kubic repo key (gpg dearmored to trusted.gpg.d)
       ansible.builtin.apt_key:
         url: "{{ kubic_key_url }}"
@@ -48,6 +54,7 @@
         state: present
         update_cache: yes
 
+    # ----- Utilities from standard repo -----
     - name: Install vim and dig from standard repo
       ansible.builtin.apt:
         name:
@@ -56,10 +63,11 @@
         state: present
         update_cache: yes
 
+    # ----- Enable IPv4 forwarding (persist + immediate) -----
     - name: Ensure net.ipv4.ip_forward=1 is uncommented in /etc/sysctl.conf
       ansible.builtin.replace:
         path: /etc/sysctl.conf
-        regexp: '^#?net\.ipv4\.ip_forward\s*=\s*0?'
+        regexp: '^#?net\.ipv4\.ip_forward\s*=\s*\d+\s*$'
         replace: 'net.ipv4.ip_forward=1'
 
     - name: Apply ip_forward setting immediately
@@ -69,6 +77,44 @@
         sysctl_set: no
         state: present
         reload: no
+
+    # ----- Prepare and mount /dev/sda -> /var/lib/k3s -----
+    - name: Check that {{ k3s_mount_device }} exists
+      ansible.builtin.stat:
+        path: "{{ k3s_mount_device }}"
+      register: sda_stat
+
+    - name: Detect existing filesystem type on {{ k3s_mount_device }}
+      ansible.builtin.command: "blkid -o value -s TYPE {{ k3s_mount_device }}"
+      register: sda_fs
+      changed_when: false
+      failed_when: false
+      when: sda_stat.stat.exists
+
+    - name: Create ext4 filesystem on {{ k3s_mount_device }} if not present
+      ansible.builtin.filesystem:
+        fstype: "{{ k3s_fstype }}"
+        dev: "{{ k3s_mount_device }}"
+      when:
+        - sda_stat.stat.exists
+        - sda_fs.rc != 0 or (sda_fs.stdout | trim) == ""
+
+    - name: Ensure mount point {{ k3s_mount_point }} exists
+      ansible.builtin.file:
+        path: "{{ k3s_mount_point }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Mount {{ k3s_mount_device }} at {{ k3s_mount_point }} and persist in fstab
+      ansible.builtin.mount:
+        path: "{{ k3s_mount_point }}"
+        src: "{{ k3s_mount_device }}"
+        fstype: "{{ k3s_fstype }}"
+        opts: "defaults"
+        state: mounted
+      when: sda_stat.stat.exists
 
   handlers:
     - name: Reboot node

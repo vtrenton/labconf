@@ -1,5 +1,5 @@
 $TTL 86400      ; Default TTL
-@       IN      SOA     labns.starfleet.lan. admin.starfleet.lan. (
+@       IN      SOA     labns.labnet.lan. admin.labnet.lan. (
                         2024012301  ; Serial
                         3600        ; Refresh
                         1800        ; Retry
@@ -7,9 +7,9 @@ $TTL 86400      ; Default TTL
                         86400 )     ; Minimum TTL
 
                 ; Name Server Information
-@       IN      NS      labns.starfleet.lan.
+@       IN      NS      labns.labnet.lan.
 
-                ; A records for starfleet.lan
+                ; A records for labnet.lan
 gateway         IN      A       10.0.0.1
 labns           IN      A       10.0.0.5
 kubemaster1     IN      A       10.0.0.11
@@ -19,10 +19,10 @@ kubeworker1     IN      A       10.0.0.15
 kubeworker2     IN      A       10.0.0.16
 kubeworker3     IN      A       10.0.0.17
 kubeworker4     IN      A       10.0.0.18
-mothership0     IN      A       10.0.0.160
-mothership1     IN      A       10.0.0.161
-mothership2     IN      A       10.0.0.162
-mothership      IN      A       10.0.0.165
+infracluster    IN      A       10.0.0.160
+infra1          IN      A       10.0.0.161
+infra2          IN      A       10.0.0.162
+infra3          IN      A       10.0.0.160
 
 ; end of zone file
 
