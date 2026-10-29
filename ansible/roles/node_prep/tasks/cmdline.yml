@@ -1,0 +1,14 @@
+- name: Read current cmdline.txt
+  ansible.builtin.slurp:
+    src: "{{ node_prep_cmdline_file }}"
+  register: cmdline_raw
+
+- name: Append cgroup parameters to cmdline.txt
+  ansible.builtin.copy:
+    dest: "{{ node_prep_cmdline_file }}"
+    content: "{{ (cmdline_raw.content | b64decode).rstrip() }} {{ node_prep_cmdline_params }}\n"
+    owner: root
+    group: root
+    mode: '0644'
+  when: "'cgroup_enable=cpuset' not in (cmdline_raw.content | b64decode)"
+  notify: Reboot node

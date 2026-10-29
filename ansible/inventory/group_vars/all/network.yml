@@ -1,0 +1,8 @@
+# Cilium LB-IPAM pool, announced (L2/ARP) by workers only.
+# Must not overlap DHCP or k3s_api_vip.
+cilium_lb_pool_start: 10.0.0.20
+cilium_lb_pool_stop: 10.0.0.25
+
+# Fixed IPs from that pool
+cilium_gateway_ip: 10.0.0.20
+cilium_ingress_ip: 10.0.0.21

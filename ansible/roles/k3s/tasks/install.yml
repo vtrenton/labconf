@@ -1,0 +1,33 @@
+# Installs k3s only if absent. After install, version changes are owned by
+# system-upgrade-controller (argo-apps); this never upgrades or downgrades.
+- name: Check installed k3s version
+  ansible.builtin.command: /usr/local/bin/k3s --version
+  register: k3s_installed
+  changed_when: false
+  failed_when: false
+
+- name: Download k3s install script
+  ansible.builtin.get_url:
+    url: https://get.k3s.io
+    dest: /usr/local/bin/k3s-install.sh
+    owner: root
+    group: root
+    mode: '0755'
+  when: k3s_installed.rc != 0
+
+- name: Install k3s {{ k3s_version }} ({{ k3s_role }})
+  ansible.builtin.command: /usr/local/bin/k3s-install.sh
+  environment:
+    INSTALL_K3S_VERSION: "{{ k3s_version }}"
+    INSTALL_K3S_EXEC: "{{ k3s_role }}"
+  when: k3s_installed.rc != 0
+
+- name: Note version drift (left for SUC to reconcile)
+  ansible.builtin.debug:
+    msg: >-
+      {{ inventory_hostname }} runs
+      {{ k3s_installed.stdout_lines[0] | default('?') }}; versions.yml says
+      {{ k3s_version }}. Not changing it; SUC owns upgrades.
+  when:
+    - k3s_installed.rc == 0
+    - k3s_version not in k3s_installed.stdout

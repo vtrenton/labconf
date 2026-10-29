@@ -1,0 +1,15 @@
+- name: Boot cmdline (cgroups)
+  ansible.builtin.import_tasks: cmdline.yml
+  tags: [cmdline]
+
+- name: Packages
+  ansible.builtin.import_tasks: packages.yml
+  tags: [packages]
+
+- name: Kernel networking for Kubernetes
+  ansible.builtin.import_tasks: kernel.yml
+  tags: [kernel]
+
+- name: k3s storage
+  ansible.builtin.import_tasks: storage.yml
+  tags: [storage]

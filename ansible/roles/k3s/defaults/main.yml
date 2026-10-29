@@ -1,0 +1,13 @@
+# k3s_role (server | agent) comes from group_vars/masters.yml / workers.yml.
+
+# Bundled components replaced by Cilium (servicelb, network policy, kube-proxy,
+# flannel) or not wanted (traefik).
+k3s_disable:
+  - traefik
+  - servicelb
+
+k3s_first_server: "{{ groups['masters'][0] }}"
+k3s_is_first_server: "{{ inventory_hostname == k3s_first_server }}"
+k3s_service: "{{ 'k3s' if k3s_role == 'server' else 'k3s-agent' }}"
+
+k3s_local_kubeconfig: "{{ lookup('env', 'HOME') }}/.kube/pilab-k3s.yaml"

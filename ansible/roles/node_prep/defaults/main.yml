@@ -1,0 +1,20 @@
+node_prep_cmdline_file: /boot/firmware/cmdline.txt
+node_prep_cmdline_params: cgroup_enable=cpuset cgroup_enable=memory cgroup_memory=1
+
+# crictl is not listed: k3s ships its own, matched to its version.
+node_prep_packages:
+  - vim
+  - dnsutils
+
+node_prep_kernel_modules:
+  - br_netfilter
+
+node_prep_sysctl_file: /etc/sysctl.d/99-kubeconfig.conf
+node_prep_sysctls:
+  - net.ipv4.ip_forward
+  - net.bridge.bridge-nf-call-iptables
+  - net.bridge.bridge-nf-call-ip6tables
+
+# SSD for k3s state (etcd, images), mounted at k3s_data_dir
+node_prep_storage_device: /dev/sda
+node_prep_storage_fstype: ext4

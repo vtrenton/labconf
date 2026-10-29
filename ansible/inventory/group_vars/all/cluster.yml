@@ -1,0 +1,13 @@
+# Cluster-wide facts shared by k3s, kube-vip and Cilium.
+cluster_interface: eth0
+
+# API server VIP, announced by kube-vip on the masters
+k3s_api_vip: 10.0.0.10
+k3s_join_url: "https://{{ k3s_api_vip }}:6443"
+
+k3s_cluster_cidr: 10.42.0.0/16
+k3s_service_cidr: 10.43.0.0/16
+
+# Also the mount point for the node's SSD (node_prep)
+k3s_data_dir: /var/lib/k3s
+k3s_manifests_dir: "{{ k3s_data_dir }}/server/manifests"

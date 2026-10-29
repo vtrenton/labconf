@@ -1,0 +1,37 @@
+# cluster.yml
+# HA k3s with embedded etcd. Bundled networking is disabled; Cilium provides it.
+# On masters, the addon roles only stage manifests into the k3s auto-deploy
+# dir, so they run before k3s is installed and come up with it.
+#
+# Day-2 re-stage of one component: --tags kube_vip | cilium | argocd
+
+# serial: 1 so the first master initializes etcd before the others join,
+# and joins happen one at a time.
+- name: k3s servers
+  hosts: masters
+  become: true
+  gather_facts: false
+  serial: 1
+  roles:
+    - { role: kube_vip, tags: [kube_vip] }
+    - { role: cilium, tags: [cilium] }
+    - { role: argocd_bootstrap, tags: [argocd] }
+    - { role: k3s, tags: [k3s] }
+
+- name: k3s agents
+  hosts: workers
+  become: true
+  gather_facts: false
+  roles:
+    - { role: k3s, tags: [k3s] }
+
+# Nodes only go Ready once Cilium is running
+- name: Wait for cluster to be Ready
+  hosts: "{{ groups['masters'][0] }}"
+  become: true
+  gather_facts: false
+  tags: [k3s]
+  tasks:
+    - name: Wait for all nodes to be Ready
+      ansible.builtin.command: k3s kubectl wait --for condition=Ready nodes --all --timeout=900s
+      changed_when: false

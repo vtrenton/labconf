@@ -1,0 +1,9 @@
+# prep-nodes.yml
+# OS-level prep: boot cmdline, packages, kernel modules/sysctls, SSD mount.
+# Must run before cluster.yml (k3s_data_dir lives on the SSD).
+- name: Prepare nodes
+  hosts: picluster
+  become: true
+  gather_facts: false
+  roles:
+    - node_prep

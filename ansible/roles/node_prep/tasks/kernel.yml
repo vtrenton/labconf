@@ -1,0 +1,18 @@
+# bridge-nf-call-* sysctls only exist once br_netfilter is loaded
+- name: Load kernel modules now and on boot
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: present
+    persistent: present
+  loop: "{{ node_prep_kernel_modules }}"
+
+# Debian 13 has no /etc/sysctl.conf; settings live in /etc/sysctl.d/*.conf
+- name: Set Kubernetes sysctls in {{ node_prep_sysctl_file }}
+  ansible.posix.sysctl:
+    name: "{{ item }}"
+    value: '1'
+    sysctl_file: "{{ node_prep_sysctl_file }}"
+    sysctl_set: yes
+    state: present
+    reload: yes
+  loop: "{{ node_prep_sysctls }}"

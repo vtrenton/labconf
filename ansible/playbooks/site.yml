@@ -1,0 +1,6 @@
+# site.yml - full build: node prep, then the cluster.
+- name: Node prep
+  ansible.builtin.import_playbook: prep-nodes.yml
+
+- name: Cluster
+  ansible.builtin.import_playbook: cluster.yml

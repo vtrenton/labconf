@@ -1,0 +1,48 @@
+# reset.yml - DESTROYS the cluster: uninstalls k3s and wipes k3s_data_dir
+# (etcd, images, staged manifests) on every node, then reboots to clear
+# Cilium's BPF state and interfaces. For rebuild testing.
+#
+#   ansible-playbook playbooks/ops/reset.yml -e confirm_reset=yes
+- name: Reset k3s on all nodes
+  hosts: picluster
+  become: true
+  gather_facts: false
+
+  pre_tasks:
+    - name: Require explicit confirmation
+      ansible.builtin.assert:
+        that: confirm_reset | default('') == 'yes'
+        fail_msg: "Refusing to reset. Re-run with -e confirm_reset=yes"
+      run_once: true
+      delegate_to: localhost
+
+  tasks:
+    - name: Run k3s uninstall script
+      ansible.builtin.command: "{{ item }}"
+      args:
+        removes: "{{ item }}"
+      loop:
+        - /usr/local/bin/k3s-uninstall.sh
+        - /usr/local/bin/k3s-agent-uninstall.sh
+
+    # The uninstall script only cleans the default data dir. Ours is a mount
+    # point, so remove its contents rather than the directory.
+    - name: Find contents of {{ k3s_data_dir }}
+      ansible.builtin.find:
+        paths: "{{ k3s_data_dir }}"
+        file_type: any
+        hidden: true
+      register: data_dir_contents
+
+    - name: Wipe {{ k3s_data_dir }}
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ data_dir_contents.files }}"
+      loop_control:
+        label: "{{ item.path }}"
+      when: item.path | basename != 'lost+found'
+
+    - name: Reboot
+      ansible.builtin.reboot:
+        reboot_timeout: 1800

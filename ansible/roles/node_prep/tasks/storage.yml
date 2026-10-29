@@ -1,0 +1,37 @@
+# Must be mounted before k3s is installed, since k3s_data_dir lives here.
+- name: Check that {{ node_prep_storage_device }} exists
+  ansible.builtin.stat:
+    path: "{{ node_prep_storage_device }}"
+  register: storage_dev
+
+- name: Detect existing filesystem on {{ node_prep_storage_device }}
+  ansible.builtin.command: "blkid -o value -s TYPE {{ node_prep_storage_device }}"
+  register: storage_fs
+  changed_when: false
+  failed_when: false
+  when: storage_dev.stat.exists
+
+- name: Create {{ node_prep_storage_fstype }} filesystem if not present
+  community.general.filesystem:
+    fstype: "{{ node_prep_storage_fstype }}"
+    dev: "{{ node_prep_storage_device }}"
+  when:
+    - storage_dev.stat.exists
+    - storage_fs.rc != 0 or (storage_fs.stdout | trim) == ""
+
+- name: Ensure mount point {{ k3s_data_dir }} exists
+  ansible.builtin.file:
+    path: "{{ k3s_data_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Mount {{ node_prep_storage_device }} at {{ k3s_data_dir }} and persist in fstab
+  ansible.posix.mount:
+    path: "{{ k3s_data_dir }}"
+    src: "{{ node_prep_storage_device }}"
+    fstype: "{{ node_prep_storage_fstype }}"
+    opts: defaults
+    state: mounted
+  when: storage_dev.stat.exists

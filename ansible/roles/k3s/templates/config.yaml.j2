@@ -1,0 +1,23 @@
+# Managed by Ansible (roles/k3s)
+data-dir: {{ k3s_data_dir }}
+{% if k3s_is_first_server %}
+cluster-init: true
+{% else %}
+server: {{ k3s_join_url }}
+token: {{ k3s_token }}
+{% endif %}
+{% if k3s_role == 'server' %}
+flannel-backend: none
+disable-network-policy: true
+disable-kube-proxy: true
+disable:
+{% for item in k3s_disable %}
+  - {{ item }}
+{% endfor %}
+cluster-cidr: {{ k3s_cluster_cidr }}
+service-cidr: {{ k3s_service_cidr }}
+tls-san:
+  - {{ k3s_api_vip }}
+node-taint:
+  - node-role.kubernetes.io/control-plane:NoSchedule
+{% endif %}

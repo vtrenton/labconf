@@ -1,0 +1,5 @@
+- name: Install base packages
+  ansible.builtin.apt:
+    name: "{{ node_prep_packages }}"
+    state: present
+    update_cache: yes

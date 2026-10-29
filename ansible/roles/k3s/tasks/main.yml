@@ -1,0 +1,41 @@
+# Every node except the first server joins with the token from the first server.
+- name: Read cluster join token from {{ k3s_first_server }}
+  ansible.builtin.slurp:
+    src: "{{ k3s_data_dir }}/server/token"
+  delegate_to: "{{ k3s_first_server }}"
+  run_once: true
+  register: k3s_token_raw
+  no_log: true
+  when: not k3s_is_first_server
+
+- name: Set join token
+  ansible.builtin.set_fact:
+    k3s_token: "{{ k3s_token_raw.content | b64decode | trim }}"
+  no_log: true
+  when: not k3s_is_first_server
+
+- name: Ensure /etc/rancher/k3s exists
+  ansible.builtin.file:
+    path: /etc/rancher/k3s
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Write k3s config
+  ansible.builtin.template:
+    src: config.yaml.j2
+    dest: /etc/rancher/k3s/config.yaml
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+  notify: Restart k3s
+
+- name: Install k3s
+  ansible.builtin.import_tasks: install.yml
+
+# import (not include) so the tasks inherit the role's tags
+- name: First server setup
+  ansible.builtin.import_tasks: first_server.yml
+  when: k3s_is_first_server
