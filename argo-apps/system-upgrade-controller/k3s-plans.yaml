@@ -1,0 +1,48 @@
+# k3s upgrades. To upgrade, bump `version` in BOTH plans, and k3s_version in
+# ansible/vars/k3s.yml in the same commit (that one only affects new installs).
+# One minor version at a time. Servers go first; agents wait for server-plan.
+apiVersion: upgrade.cattle.io/v1
+kind: Plan
+metadata:
+  name: server-plan
+  namespace: system-upgrade
+spec:
+  version: v1.36.5+k3s1
+  concurrency: 1
+  cordon: true
+  nodeSelector:
+    matchExpressions:
+      - key: node-role.kubernetes.io/control-plane
+        operator: In
+        values:
+          - "true"
+  # Masters are tainted control-plane:NoSchedule
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+  serviceAccountName: system-upgrade
+  upgrade:
+    image: rancher/k3s-upgrade
+---
+apiVersion: upgrade.cattle.io/v1
+kind: Plan
+metadata:
+  name: agent-plan
+  namespace: system-upgrade
+spec:
+  version: v1.36.5+k3s1
+  concurrency: 1
+  cordon: true
+  nodeSelector:
+    matchExpressions:
+      - key: node-role.kubernetes.io/control-plane
+        operator: DoesNotExist
+  prepare:
+    image: rancher/k3s-upgrade
+    args:
+      - prepare
+      - server-plan
+  serviceAccountName: system-upgrade
+  upgrade:
+    image: rancher/k3s-upgrade

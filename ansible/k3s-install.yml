@@ -1,0 +1,184 @@
+# k3s-install.yml
+# HA k3s with embedded etcd. All bundled networking (flannel, kube-proxy,
+# network policy, servicelb, traefik) is disabled; Cilium provides it.
+# kube-vip, Cilium and Argo CD are staged in the k3s manifests dir before k3s starts.
+
+# ----- First master: initialize embedded etcd -----
+- name: Bootstrap first k3s server
+  hosts: "{{ groups['masters'][0] }}"
+  become: true
+  gather_facts: false
+  vars_files:
+    - vars/k3s.yml
+    - vars/cilium.yml
+    - vars/argocd.yml
+  vars:
+    k3s_role: server
+
+  tasks:
+    - name: Ensure /etc/rancher/k3s exists
+      ansible.builtin.file:
+        path: /etc/rancher/k3s
+        state: directory
+        mode: '0755'
+
+    - name: Write k3s server config
+      ansible.builtin.copy:
+        dest: /etc/rancher/k3s/config.yaml
+        owner: root
+        group: root
+        mode: '0600'
+        content: |
+          cluster-init: true
+          {{ k3s_server_config }}
+      notify: Restart k3s
+
+    - name: Stage kube-vip for the API server VIP
+      ansible.builtin.include_tasks: tasks/kube-vip.yml
+
+    - name: Stage Cilium
+      ansible.builtin.include_tasks: tasks/cilium.yml
+
+    - name: Stage Argo CD
+      ansible.builtin.include_tasks: tasks/argocd.yml
+
+    - name: Install k3s
+      ansible.builtin.include_tasks: tasks/k3s-binary.yml
+
+    - name: Wait for cluster join token
+      ansible.builtin.wait_for:
+        path: "{{ k3s_data_dir }}/server/token"
+
+    - name: Read cluster join token
+      ansible.builtin.slurp:
+        src: "{{ k3s_data_dir }}/server/token"
+      register: k3s_token_raw
+
+    - name: Wait for kube-vip to bring up the API server VIP
+      ansible.builtin.wait_for:
+        host: "{{ k3s_api_vip }}"
+        port: 6443
+        timeout: 600
+      delegate_to: localhost
+      become: false
+
+    - name: Fetch admin kubeconfig to this machine
+      ansible.builtin.fetch:
+        src: /etc/rancher/k3s/k3s.yaml
+        dest: "{{ lookup('env', 'HOME') }}/.kube/pilab-k3s.yaml"
+        flat: true
+
+    - name: Point local kubeconfig at the API server VIP
+      ansible.builtin.replace:
+        path: "{{ lookup('env', 'HOME') }}/.kube/pilab-k3s.yaml"
+        regexp: 'https://127\.0\.0\.1:6443'
+        replace: "https://{{ k3s_api_vip }}:6443"
+      delegate_to: localhost
+      become: false
+
+  handlers:
+    - name: Restart k3s
+      ansible.builtin.systemd_service:
+        name: k3s
+        state: restarted
+
+# ----- Remaining masters: join etcd one at a time -----
+- name: Join additional k3s servers
+  hosts: "masters:!{{ groups['masters'][0] }}"
+  become: true
+  gather_facts: false
+  serial: 1
+  vars_files:
+    - vars/k3s.yml
+    - vars/cilium.yml
+    - vars/argocd.yml
+  vars:
+    k3s_role: server
+    k3s_token: "{{ hostvars[groups['masters'][0]].k3s_token_raw.content | b64decode | trim }}"
+
+  tasks:
+    - name: Ensure /etc/rancher/k3s exists
+      ansible.builtin.file:
+        path: /etc/rancher/k3s
+        state: directory
+        mode: '0755'
+
+    - name: Write k3s server config
+      ansible.builtin.copy:
+        dest: /etc/rancher/k3s/config.yaml
+        owner: root
+        group: root
+        mode: '0600'
+        content: |
+          server: {{ k3s_join_url }}
+          token: {{ k3s_token }}
+          {{ k3s_server_config }}
+      notify: Restart k3s
+
+    - name: Stage kube-vip for the API server VIP
+      ansible.builtin.include_tasks: tasks/kube-vip.yml
+
+    - name: Stage Cilium
+      ansible.builtin.include_tasks: tasks/cilium.yml
+
+    - name: Stage Argo CD
+      ansible.builtin.include_tasks: tasks/argocd.yml
+
+    - name: Install k3s
+      ansible.builtin.include_tasks: tasks/k3s-binary.yml
+
+  handlers:
+    - name: Restart k3s
+      ansible.builtin.systemd_service:
+        name: k3s
+        state: restarted
+
+# ----- Workers -----
+- name: Join k3s agents
+  hosts: workers
+  become: true
+  gather_facts: false
+  vars_files:
+    - vars/k3s.yml
+  vars:
+    k3s_role: agent
+    k3s_token: "{{ hostvars[groups['masters'][0]].k3s_token_raw.content | b64decode | trim }}"
+
+  tasks:
+    - name: Ensure /etc/rancher/k3s exists
+      ansible.builtin.file:
+        path: /etc/rancher/k3s
+        state: directory
+        mode: '0755'
+
+    - name: Write k3s agent config
+      ansible.builtin.copy:
+        dest: /etc/rancher/k3s/config.yaml
+        owner: root
+        group: root
+        mode: '0600'
+        content: |
+          server: {{ k3s_join_url }}
+          token: {{ k3s_token }}
+          data-dir: {{ k3s_data_dir }}
+      notify: Restart k3s-agent
+
+    - name: Install k3s
+      ansible.builtin.include_tasks: tasks/k3s-binary.yml
+
+  handlers:
+    - name: Restart k3s-agent
+      ansible.builtin.systemd_service:
+        name: k3s-agent
+        state: restarted
+
+# ----- Verify: nodes only go Ready once Cilium is running -----
+- name: Wait for cluster to be Ready
+  hosts: "{{ groups['masters'][0] }}"
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Wait for all nodes to be Ready
+      ansible.builtin.command: k3s kubectl wait --for condition=Ready nodes --all --timeout=900s
+      changed_when: false

@@ -1,0 +1,25 @@
+# Version for fresh installs/new nodes only; upgrades come from the SUC Plan in
+# argo-apps. Bump this in the same commit as the Plan.
+k3s_version: "v1.36.5+k3s1"
+k3s_data_dir: /var/lib/k3s
+k3s_api_vip: 10.0.0.10
+
+# kube-vip announces the VIP as soon as the first server is up
+k3s_join_url: "https://{{ k3s_api_vip }}:6443"
+
+# Shared by every server. Flannel, kube-proxy, network policy, servicelb and
+# traefik are all disabled; Cilium replaces them (kube-vip handles the API VIP).
+k3s_server_config: |
+  data-dir: {{ k3s_data_dir }}
+  flannel-backend: none
+  disable-network-policy: true
+  disable-kube-proxy: true
+  disable:
+    - traefik
+    - servicelb
+  cluster-cidr: 10.42.0.0/16
+  service-cidr: 10.43.0.0/16
+  tls-san:
+    - {{ k3s_api_vip }}
+  node-taint:
+    - node-role.kubernetes.io/control-plane:NoSchedule

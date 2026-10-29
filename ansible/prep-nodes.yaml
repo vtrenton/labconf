@@ -7,7 +7,7 @@
   vars:
     # cri-tools comes from the official Kubernetes package repo (pkgs.k8s.io).
     # Pin the minor version to match your cluster.
-    k8s_minor_version: "v1.34"
+    k8s_minor_version: "v1.36"
     k8s_repo_url: "https://pkgs.k8s.io/core:/stable:/{{ k8s_minor_version }}/deb/"
 
     k3s_mount_device: "/dev/sda"

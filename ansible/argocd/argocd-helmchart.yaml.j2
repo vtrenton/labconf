@@ -1,0 +1,16 @@
+# Installed by the k3s helm-controller once Cilium provides pod networking.
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: argocd
+  namespace: kube-system
+spec:
+  repo: https://argoproj.github.io/argo-helm
+  chart: argo-cd
+  version: "{{ argocd_chart_version }}"
+  targetNamespace: argocd
+  createNamespace: true
+  valuesContent: |-
+    # No SSO / web UI login for now
+    dex:
+      enabled: false

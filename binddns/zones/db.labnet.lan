@@ -15,10 +15,10 @@ labns           IN      A       10.0.0.5
 kubemaster1     IN      A       10.0.0.11
 kubemaster2     IN      A       10.0.0.12
 kubemaster3     IN      A       10.0.0.13
-kubeworker1     IN      A       10.0.0.15
-kubeworker2     IN      A       10.0.0.16
-kubeworker3     IN      A       10.0.0.17
-kubeworker4     IN      A       10.0.0.18
+kubeworker1     IN      A       10.0.0.14
+kubeworker2     IN      A       10.0.0.15
+kubeworker3     IN      A       10.0.0.16
+kubeworker4     IN      A       10.0.0.17
 infracluster    IN      A       10.0.0.160
 infra1          IN      A       10.0.0.161
 infra2          IN      A       10.0.0.162

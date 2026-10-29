@@ -1,0 +1,31 @@
+# Stages Cilium in the k3s auto-deploy dir. Safe to run before k3s starts:
+# k3s applies these in name order and retries every 15s until each succeeds,
+# so the pool/policy/Gateway apply once Cilium has registered its CRDs.
+- name: Ensure k3s manifests directory exists
+  ansible.builtin.file:
+    path: "{{ k3s_data_dir }}/server/manifests"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+# 00- prefix: must be applied before Cilium starts or Gateway API stays disabled
+- name: Download Gateway API {{ gateway_api_version }} CRDs
+  ansible.builtin.get_url:
+    url: "https://github.com/kubernetes-sigs/gateway-api/releases/download/{{ gateway_api_version }}/standard-install.yaml"
+    dest: "{{ k3s_data_dir }}/server/manifests/00-gateway-api-crds.yaml"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Template Cilium manifests
+  ansible.builtin.template:
+    src: "cilium/{{ item.src }}"
+    dest: "{{ k3s_data_dir }}/server/manifests/{{ item.dest }}"
+    owner: root
+    group: root
+    mode: '0644'
+  loop:
+    - { src: cilium-helmchart.yaml.j2, dest: cilium.yaml }
+    - { src: cilium-lb.yaml.j2, dest: cilium-lb.yaml }
+    - { src: gateway.yaml.j2, dest: cilium-gateway.yaml }

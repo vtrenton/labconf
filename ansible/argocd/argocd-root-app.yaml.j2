@@ -1,0 +1,19 @@
+# Root of the app-of-apps. k3s retries this until the Argo CD CRDs exist.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: {{ argocd_repo_url }}
+    targetRevision: {{ argocd_repo_revision }}
+    path: {{ argocd_apps_path }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
