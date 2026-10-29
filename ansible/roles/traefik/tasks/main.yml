@@ -1,0 +1,17 @@
+# Staged in the k3s auto-deploy dir before k3s starts, so the bundled Traefik
+# chart is installed with these values from the start.
+- name: Ensure k3s manifests directory exists
+  ansible.builtin.file:
+    path: "{{ k3s_manifests_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Stage Traefik HelmChartConfig
+  ansible.builtin.template:
+    src: traefik-config.yaml.j2
+    dest: "{{ k3s_manifests_dir }}/traefik-config.yaml"
+    owner: root
+    group: root
+    mode: '0644'

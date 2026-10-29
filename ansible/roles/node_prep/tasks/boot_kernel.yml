@@ -1,0 +1,110 @@
+# Switch from the Pi OS kernel to Debian's generic arm64 kernel (BTF, 48+ bit
+# VA). Sets node_prep_reboot_kernel; reboot.yml does the actual reboot.
+
+# sdhci_iproc is built in on the Pi kernel but a module on Debian's, and
+# MODULES=dep resolves against the running (Pi) kernel, so list it explicitly.
+- name: Ensure SD card drivers are in the initramfs
+  ansible.builtin.lineinfile:
+    path: /etc/initramfs-tools/modules
+    line: "{{ item }}"
+  loop: "{{ node_prep_initramfs_modules }}"
+  register: initramfs_modules
+
+# Replaces the Pi-DT disable-wifi overlay, which the upstream DT can't use
+- name: Blacklist Wi-Fi driver
+  ansible.builtin.copy:
+    dest: /etc/modprobe.d/disable-wifi.conf
+    content: |
+      # Managed by Ansible (roles/node_prep)
+      {% for m in node_prep_blacklist_modules %}
+      blacklist {{ m }}
+      {% endfor %}
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Install firmware sync script
+  ansible.builtin.template:
+    src: debian-kernel-to-firmware.j2
+    dest: /usr/local/sbin/debian-kernel-to-firmware
+    owner: root
+    group: root
+    mode: '0755'
+
+# Must exist before the kernel package is installed so its postinst runs it
+- name: Hook firmware sync into kernel and initramfs updates
+  ansible.builtin.file:
+    src: /usr/local/sbin/debian-kernel-to-firmware
+    dest: "{{ item }}/zz-debian-kernel-to-firmware"
+    state: link
+  loop:
+    - /etc/kernel/postinst.d
+    - /etc/kernel/postrm.d
+    - /etc/initramfs/post-update.d
+
+- name: Install Debian generic arm64 kernel
+  ansible.builtin.apt:
+    name: linux-image-arm64
+    state: present
+    update_cache: yes
+    cache_valid_time: 3600
+  register: debian_kernel
+
+- name: Rebuild initramfs after module list change
+  ansible.builtin.command: update-initramfs -u -k all
+  when:
+    - initramfs_modules is changed
+    - debian_kernel is not changed
+
+- name: Sync kernel, initrd and DTB to {{ node_prep_firmware_dir }}/{{ node_prep_boot_subdir }}
+  ansible.builtin.command: /usr/local/sbin/debian-kernel-to-firmware
+  register: firmware_sync
+  changed_when: "'updated' in firmware_sync.stdout"
+
+- name: Verify Debian boot files are in place
+  ansible.builtin.stat:
+    path: "{{ node_prep_firmware_dir }}/{{ node_prep_boot_subdir }}/{{ item }}"
+  loop:
+    - vmlinuz
+    - initrd.img
+    - "{{ node_prep_boot_dtb }}"
+  register: boot_files
+  failed_when: not boot_files.stat.exists
+
+# force: false, so only the first run captures the original Pi OS config
+- name: Back up Pi OS config.txt
+  ansible.builtin.copy:
+    src: "{{ node_prep_firmware_dir }}/config.txt"
+    dest: "{{ node_prep_firmware_dir }}/config.txt.rpi"
+    remote_src: true
+    force: false
+    mode: '0755'
+
+# Rescue path: `reboot "0 tryboot"` boots the Pi OS kernel once
+- name: Point tryboot.txt at the Pi OS kernel
+  ansible.builtin.copy:
+    src: "{{ node_prep_firmware_dir }}/config.txt.rpi"
+    dest: "{{ node_prep_firmware_dir }}/tryboot.txt"
+    remote_src: true
+    mode: '0755'
+
+- name: Boot Debian kernel from config.txt
+  ansible.builtin.template:
+    src: config.txt.j2
+    dest: "{{ node_prep_firmware_dir }}/config.txt"
+    owner: root
+    group: root
+    mode: '0755'
+  register: boot_config
+
+- name: Check running kernel
+  ansible.builtin.command: uname -r
+  register: running_kernel
+  changed_when: false
+
+# Also reboot when config.txt changed, so the permanent boot path is proven
+# (not just a tryboot) before the play moves on.
+- name: Flag reboot if not on the Debian kernel or boot config changed
+  ansible.builtin.set_fact:
+    node_prep_reboot_kernel: >-
+      {{ (not running_kernel.stdout.endswith('-arm64')) or (boot_config is changed) }}

@@ -20,7 +20,34 @@
   environment:
     INSTALL_K3S_VERSION: "{{ k3s_version }}"
     INSTALL_K3S_EXEC: "{{ k3s_role }}"
+    # Started below instead: the script's blocking start fails the whole run on
+    # a transient error (e.g. VIP briefly down) that systemd would retry.
+    INSTALL_K3S_SKIP_START: "true"
+  register: k3s_install_result
   when: k3s_installed.rc != 0
+
+- name: Start {{ k3s_service }} (systemd retries on failure)
+  ansible.builtin.command: systemctl start --no-block {{ k3s_service }}
+  when: k3s_install_result is changed
+
+- name: Wait for {{ k3s_service }} to be active
+  ansible.builtin.command: systemctl is-active {{ k3s_service }}
+  register: k3s_active
+  until: k3s_active.stdout == 'active'
+  retries: 60
+  delay: 5
+  changed_when: false
+  failed_when: false
+  when: k3s_install_result is changed
+
+- name: Fail if {{ k3s_service }} never became active
+  ansible.builtin.fail:
+    msg: >-
+      {{ k3s_service }} did not become active within 5 minutes; see
+      journalctl -u {{ k3s_service }} on {{ inventory_hostname }}
+  when:
+    - k3s_install_result is changed
+    - k3s_active.stdout != 'active'
 
 - name: Note version drift (left for SUC to reconcile)
   ansible.builtin.debug:

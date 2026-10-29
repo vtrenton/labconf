@@ -1,0 +1,33 @@
+#!/bin/sh
+# Managed by Ansible (roles/node_prep).
+# Copies the newest Debian generic arm64 kernel, its initrd and the upstream
+# Pi 4 device tree into {{ node_prep_firmware_dir }}/{{ node_prep_boot_subdir }}/,
+# where config.txt boots them. Installed as a kernel postinst/postrm and
+# initramfs post-update hook because the raspi-firmware hooks skip any kernel
+# that isn't "-rpi-". Safe to run by hand; prints "updated ..." on changes.
+set -e
+
+FW={{ node_prep_firmware_dir }}
+DST=$FW/{{ node_prep_boot_subdir }}
+DTB={{ node_prep_boot_dtb }}
+
+mountpoint -q "$FW" || { echo "debian-kernel-to-firmware: $FW not mounted" >&2; exit 1; }
+
+latest=$(ls -1 /boot/vmlinuz-*-arm64 2>/dev/null | sed 's|^/boot/vmlinuz-||' | sort -V | tail -n1)
+[ -n "$latest" ] || exit 0
+
+mkdir -p "$DST"
+
+sync_file() {
+  [ -e "$1" ] || return 0
+  if ! cmp -s "$1" "$2"; then
+    cp "$1" "$2.new"
+    mv "$2.new" "$2"
+    echo "updated $2 from $1"
+  fi
+}
+
+sync_file "/boot/vmlinuz-$latest" "$DST/vmlinuz"
+sync_file "/boot/initrd.img-$latest" "$DST/initrd.img"
+sync_file "/usr/lib/linux-image-$latest/broadcom/$DTB" "$DST/$DTB"
+sync -f "$FW"

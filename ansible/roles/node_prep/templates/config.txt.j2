@@ -1,0 +1,15 @@
+# Managed by Ansible (roles/node_prep). Original Pi OS config: config.txt.rpi
+#
+# Boots Debian's generic arm64 kernel with the upstream device tree. The Pi OS
+# kernel lacks BTF (Cilium datapath) and uses 39-bit VA (Envoy). Pi-DT
+# overlays (vc4, tpm-slb9670, disable-wifi) don't apply to the upstream DT.
+#
+# Rescue: `reboot "0 tryboot"` boots the Pi OS kernel once via tryboot.txt.
+[all]
+arm_64bit=1
+arm_boost=1
+kernel={{ node_prep_boot_subdir }}/vmlinuz
+initramfs {{ node_prep_boot_subdir }}/initrd.img followkernel
+device_tree={{ node_prep_boot_subdir }}/{{ node_prep_boot_dtb }}
+auto_initramfs=0
+disable_overscan=1

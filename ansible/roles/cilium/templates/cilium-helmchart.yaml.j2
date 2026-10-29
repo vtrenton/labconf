@@ -36,15 +36,16 @@ spec:
       qps: 20
       burst: 40
 
+    # No Envoy: cilium-envoy's tcmalloc needs a 48-bit VA kernel and the Pi 4
+    # rpi-v8 kernel is 39-bit (cilium/proxy#1027). Gateway API and Ingress are
+    # served by k3s's bundled Traefik instead; Cilium only provides its LB IP.
+    l7Proxy: false
+    envoy:
+      enabled: false
     gatewayAPI:
-      enabled: true
-
+      enabled: false
     ingressController:
-      enabled: true
-      default: true
-      loadbalancerMode: shared
-      service:
-        loadBalancerIP: {{ cilium_ingress_ip }}
+      enabled: false
 
     hubble:
       enabled: true

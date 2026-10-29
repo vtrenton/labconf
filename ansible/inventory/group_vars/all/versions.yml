@@ -8,7 +8,8 @@ kube_vip_version: "v1.0.0"
 
 # Cilium upgrades: one minor at a time, then re-stage with --tags cilium.
 cilium_version: "1.20.4"
-# Must match the Cilium release (Documentation/conf.py upstream)
-gateway_api_version: "v1.6.3"
+
+# Traefik and its Gateway API CRDs are bundled with k3s and follow k3s_version
+# (v1.36.5+k3s1 ships Traefik 3.7.13, Gateway API v1.6.1).
 
 argocd_chart_version: "10.11.6"

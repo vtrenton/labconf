@@ -1,3 +1,0 @@
-- name: Reboot node
-  ansible.builtin.reboot:
-    reboot_timeout: 1800

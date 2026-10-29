@@ -2,6 +2,10 @@
   ansible.builtin.import_tasks: cmdline.yml
   tags: [cmdline]
 
+- name: Debian generic arm64 kernel
+  ansible.builtin.import_tasks: boot_kernel.yml
+  tags: [boot_kernel]
+
 - name: Packages
   ansible.builtin.import_tasks: packages.yml
   tags: [packages]
@@ -13,3 +17,7 @@
 - name: k3s storage
   ansible.builtin.import_tasks: storage.yml
   tags: [storage]
+
+- name: Reboot if needed and verify
+  ansible.builtin.import_tasks: reboot.yml
+  tags: [cmdline, boot_kernel]

@@ -1,10 +1,21 @@
-node_prep_cmdline_file: /boot/firmware/cmdline.txt
+node_prep_firmware_dir: /boot/firmware
+node_prep_cmdline_file: "{{ node_prep_firmware_dir }}/cmdline.txt"
 node_prep_cmdline_params: cgroup_enable=cpuset cgroup_enable=memory cgroup_memory=1
+
+# Debian generic arm64 kernel, booted from {{ node_prep_firmware_dir }}/<subdir>
+node_prep_boot_subdir: debian
+node_prep_boot_dtb: bcm2711-rpi-4-b.dtb
+node_prep_initramfs_modules:
+  - sdhci_iproc
+  - mmc_block
+node_prep_blacklist_modules:
+  - brcmfmac
+  - brcmfmac_wcc
 
 # crictl is not listed: k3s ships its own, matched to its version.
 node_prep_packages:
   - vim
-  - dnsutils
+  - bind9-dnsutils   # provides dig; "dnsutils" is only a transitional name on trixie
 
 node_prep_kernel_modules:
   - br_netfilter

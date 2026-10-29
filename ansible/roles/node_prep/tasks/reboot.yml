@@ -1,0 +1,35 @@
+# One reboot for everything that needs it, then verify the node is fit for k3s
+# + Cilium before the play moves to the next host (serial: 1).
+- name: Reboot to apply boot changes
+  ansible.builtin.reboot:
+    reboot_timeout: 1800
+  when: (node_prep_reboot_cmdline | default(false) | bool) or
+        (node_prep_reboot_kernel | default(false) | bool)
+
+- name: Read running kernel
+  ansible.builtin.command: uname -r
+  register: booted_kernel
+  changed_when: false
+
+- name: Read available cgroup controllers
+  ansible.builtin.slurp:
+    src: /sys/fs/cgroup/cgroup.controllers
+  register: cgroup_controllers
+
+- name: Check for kernel BTF
+  ansible.builtin.stat:
+    path: /sys/kernel/btf/vmlinux
+  register: kernel_btf
+
+- name: Verify node is ready for k3s and Cilium
+  ansible.builtin.assert:
+    that:
+      - booted_kernel.stdout.endswith('-arm64')
+      - "'memory' in (cgroup_controllers.content | b64decode).split()"
+      - kernel_btf.stat.exists
+    fail_msg: >-
+      {{ inventory_hostname }} booted {{ booted_kernel.stdout }}
+      (memory cgroup / BTF missing?). Rescue: reboot "0 tryboot" boots the
+      Pi OS kernel; check {{ node_prep_firmware_dir }}/config.txt and
+      {{ node_prep_firmware_dir }}/{{ node_prep_boot_subdir }}/.
+    quiet: true

@@ -15,6 +15,7 @@
   roles:
     - { role: kube_vip, tags: [kube_vip] }
     - { role: cilium, tags: [cilium] }
+    - { role: traefik, tags: [traefik] }
     - { role: argocd_bootstrap, tags: [argocd] }
     - { role: k3s, tags: [k3s] }
 

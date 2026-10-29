@@ -1,0 +1,24 @@
+# Customizes k3s's bundled Traefik (merged over k3s's own values). Traefik is
+# the Gateway API + Ingress controller; Cilium LB-IPAM gives its Service a
+# fixed IP and workers announce it over L2.
+#
+# Attach HTTPRoutes from any namespace with:
+#   parentRefs: [{name: traefik-gateway, namespace: kube-system}]
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    providers:
+      kubernetesGateway:
+        enabled: true
+    gateway:
+      listeners:
+        web:
+          namespacePolicy:
+            from: All
+    service:
+      annotations:
+        lbipam.cilium.io/ips: "{{ traefik_lb_ip }}"

@@ -1,9 +1,9 @@
 # k3s_role (server | agent) comes from group_vars/masters.yml / workers.yml.
 
-# Bundled components replaced by Cilium (servicelb, network policy, kube-proxy,
-# flannel) or not wanted (traefik).
+# Bundled components replaced by Cilium (servicelb; network policy, kube-proxy
+# and flannel are disabled separately in config.yaml.j2). Traefik stays: it
+# serves Gateway API + Ingress (see roles/traefik).
 k3s_disable:
-  - traefik
   - servicelb
 
 k3s_first_server: "{{ groups['masters'][0] }}"

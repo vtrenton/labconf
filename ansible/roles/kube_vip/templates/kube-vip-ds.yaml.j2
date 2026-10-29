@@ -66,12 +66,15 @@ spec:
           value: "true"
         - name: vip_leasename
           value: plndr-cp-lock
+        # Kubernetes leader-election defaults. kube-vip exits (dropping the VIP)
+        # when a renew misses the deadline; 3s was too tight for a Pi 4 while
+        # Cilium starts and etcd adds a member. Failover takes up to ~15s.
         - name: vip_leaseduration
-          value: "5"
+          value: "15"
         - name: vip_renewdeadline
-          value: "3"
+          value: "10"
         - name: vip_retryperiod
-          value: "1"
+          value: "2"
         - name: address
           value: "{{ k3s_api_vip }}"
         - name: prometheus_server
