@@ -5,9 +5,10 @@
   gather_facts: true
 
   vars:
-    kubic_repo_url: "http://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/Debian_Unstable/ /"
-    kubic_key_url: "https://download.opensuse.org/repositories/devel:kubic:libcontainers:stable/Debian_Unstable/Release.key"
-    kubic_repo_filename: "devel_kubic_libcontainers_stable"
+    # cri-tools comes from the official Kubernetes package repo (pkgs.k8s.io).
+    # Pin the minor version to match your cluster.
+    k8s_minor_version: "v1.34"
+    k8s_repo_url: "https://pkgs.k8s.io/core:/stable:/{{ k8s_minor_version }}/deb/"
 
     k3s_mount_device: "/dev/sda"
     k3s_mount_point: "/var/lib/k3s"
@@ -35,20 +36,24 @@
       when: "'cgroup_enable=cpuset' not in (cmdline_raw.content | b64decode)"
       notify: Reboot node
 
-    # ----- OBS repo + cri-tools -----
-    - name: Add OBS Kubic repo key (gpg dearmored to trusted.gpg.d)
-      ansible.builtin.apt_key:
-        url: "{{ kubic_key_url }}"
-        state: present
-
-    - name: Add OBS Kubic Debian Unstable repository for libcontainers/cri-tools
-      ansible.builtin.apt_repository:
-        repo: "deb {{ kubic_repo_url }}"
-        filename: "{{ kubic_repo_filename }}"
+    # ----- Kubernetes repo + cri-tools -----
+    # Debian 13 has no apt-key, so the key is referenced via Signed-By in a deb822 source.
+    - name: Install python3-debian (required by deb822_repository)
+      ansible.builtin.apt:
+        name: python3-debian
         state: present
         update_cache: yes
 
-    - name: Install cri-tools from OBS repo
+    - name: Add Kubernetes apt repository for cri-tools
+      ansible.builtin.deb822_repository:
+        name: kubernetes
+        types: deb
+        uris: "{{ k8s_repo_url }}"
+        suites: /
+        signed_by: "{{ k8s_repo_url }}Release.key"
+        state: present
+
+    - name: Install cri-tools from Kubernetes repo
       ansible.builtin.apt:
         name: cri-tools
         state: present
@@ -63,20 +68,27 @@
         state: present
         update_cache: yes
 
-    # ----- Enable IPv4 forwarding (persist + immediate) -----
-    - name: Ensure net.ipv4.ip_forward=1 is uncommented in /etc/sysctl.conf
-      ansible.builtin.replace:
-        path: /etc/sysctl.conf
-        regexp: '^#?net\.ipv4\.ip_forward\s*=\s*\d+\s*$'
-        replace: 'net.ipv4.ip_forward=1'
-
-    - name: Apply ip_forward setting immediately
-      ansible.builtin.sysctl:
-        name: net.ipv4.ip_forward
-        value: '1'
-        sysctl_set: no
+    # ----- Kernel networking for Kubernetes (persist + immediate) -----
+    # bridge-nf-call-* sysctls only exist once br_netfilter is loaded
+    - name: Load br_netfilter now and on boot
+      community.general.modprobe:
+        name: br_netfilter
         state: present
-        reload: no
+        persistent: present
+
+    # Debian 13 has no /etc/sysctl.conf; settings live in /etc/sysctl.d/*.conf
+    - name: Set Kubernetes sysctls in /etc/sysctl.d/99-kubeconfig.conf
+      ansible.posix.sysctl:
+        name: "{{ item }}"
+        value: '1'
+        sysctl_file: /etc/sysctl.d/99-kubeconfig.conf
+        sysctl_set: yes
+        state: present
+        reload: yes
+      loop:
+        - net.ipv4.ip_forward
+        - net.bridge.bridge-nf-call-iptables
+        - net.bridge.bridge-nf-call-ip6tables
 
     # ----- Prepare and mount /dev/sda -> /var/lib/k3s -----
     - name: Check that {{ k3s_mount_device }} exists
