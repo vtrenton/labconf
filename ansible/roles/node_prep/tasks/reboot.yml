@@ -21,15 +21,27 @@
     path: /sys/kernel/btf/vmlinux
   register: kernel_btf
 
+# Any trace of Wi-Fi fails the rollout: an interface, the driver, or the chip
+# enumerated on SDIO.
+- name: Check for Wi-Fi
+  ansible.builtin.shell: >-
+    echo "ifaces=$(ls -d /sys/class/net/*/wireless 2>/dev/null | wc -l)
+    driver=$(test -d /sys/module/brcmfmac && echo 1 || echo 0)
+    sdio=$(ls /sys/bus/sdio/devices 2>/dev/null | wc -l)"
+  register: wifi_state
+  changed_when: false
+
 - name: Verify node is ready for k3s and Cilium
   ansible.builtin.assert:
     that:
       - booted_kernel.stdout.endswith('-arm64')
       - "'memory' in (cgroup_controllers.content | b64decode).split()"
       - kernel_btf.stat.exists
+      - wifi_state.stdout == 'ifaces=0 driver=0 sdio=0'
     fail_msg: >-
-      {{ inventory_hostname }} booted {{ booted_kernel.stdout }}
-      (memory cgroup / BTF missing?). Rescue to the Pi OS kernel: cp
+      {{ inventory_hostname }} booted {{ booted_kernel.stdout }};
+      wifi: {{ wifi_state.stdout }}. Expected a Debian *-arm64 kernel, memory
+      cgroup, BTF and no Wi-Fi. Rescue to the Pi OS kernel: cp
       {{ node_prep_firmware_dir }}/config.txt.rpi {{ node_prep_firmware_dir }}/config.txt
       and reboot.
     quiet: true

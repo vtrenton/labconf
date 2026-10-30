@@ -12,6 +12,7 @@ node_prep_initramfs_modules:
 # node, applied by the firmware via config.txt)
 node_prep_dt_overlays:
   - tpm-slb9670-upstream    # Infineon SLB9670 TPM on SPI0 CE1
+  - disable-wifi-upstream   # Wi-Fi SDIO controller off
 node_prep_blacklist_modules:
   - brcmfmac
   - brcmfmac_wcc

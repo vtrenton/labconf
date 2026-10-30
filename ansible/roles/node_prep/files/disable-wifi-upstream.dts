@@ -1,0 +1,22 @@
+// Disable on-board Wi-Fi for the *upstream* bcm2711 device tree used with
+// Debian's arm64 kernel (the Pi OS disable-wifi overlay needs Pi-DT labels).
+//
+// Turns off the SDIO controller the CYW43455 Wi-Fi sits on (mmc@7e300000,
+// label "sdhci"), so its power sequence never raises WL_REG_ON and the chip
+// is never enumerated. The SD card is on a different controller (emmc2,
+// mmc@7e340000) and is unaffected. Bluetooth (UART) is not touched.
+//
+// Compiled on the node by roles/node_prep (boot_kernel.yml) with dtc -@.
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2711";
+
+	fragment@0 {
+		target = <&sdhci>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+};

@@ -10,18 +10,38 @@
   loop: "{{ node_prep_initramfs_modules }}"
   register: initramfs_modules
 
-# Replaces the Pi-DT disable-wifi overlay, which the upstream DT can't use
-- name: Blacklist Wi-Fi driver
+# Wi-Fi off, layer 2 of 3 (1: disable-wifi-upstream overlay, 3: NetworkManager).
+# "blacklist" only stops alias autoloading; "install ... /bin/false" also
+# stops explicit modprobe and loads pulled in as a dependency.
+- name: Block Wi-Fi driver modules
   ansible.builtin.copy:
     dest: /etc/modprobe.d/disable-wifi.conf
     content: |
       # Managed by Ansible (roles/node_prep)
       {% for m in node_prep_blacklist_modules %}
       blacklist {{ m }}
+      install {{ m }} /bin/false
       {% endfor %}
     owner: root
     group: root
     mode: '0644'
+
+- name: Tell NetworkManager never to manage Wi-Fi
+  ansible.builtin.copy:
+    dest: /etc/NetworkManager/conf.d/99-disable-wifi.conf
+    content: |
+      # Managed by Ansible (roles/node_prep). Wi-Fi off, layer 3 of 3.
+      [device-disable-wifi]
+      match-device=type:wifi
+      managed=0
+    owner: root
+    group: root
+    mode: '0644'
+  register: nm_wifi_conf
+
+- name: Reload NetworkManager config
+  ansible.builtin.command: nmcli general reload conf
+  when: nm_wifi_conf is changed
 
 - name: Install firmware sync script
   ansible.builtin.template:
@@ -88,7 +108,7 @@
     state: absent
 
 # Pi OS overlays need Pi-DT labels, so our own (files/<name>.dts) are built on
-# the node for the upstream DT (currently the SLB9670 TPM).
+# the node for the upstream DT: the SLB9670 TPM and Wi-Fi off (layer 1 of 3).
 - name: Install device tree compiler
   ansible.builtin.apt:
     name: device-tree-compiler
