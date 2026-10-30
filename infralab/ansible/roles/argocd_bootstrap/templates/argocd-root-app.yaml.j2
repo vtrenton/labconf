@@ -1,4 +1,25 @@
 # Root of the app-of-apps. k3s retries this until the Argo CD CRDs exist.
+#
+# The default AppProject is normally created by the application controller at
+# startup, which can land after the root app: the app then sits at Unknown
+# ("referencing project default which does not exist") until the next
+# reconcile. Shipping it in the same file removes the race. Same spec as the
+# one Argo CD creates.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: default
+  namespace: argocd
+spec:
+  sourceRepos:
+    - '*'
+  destinations:
+    - namespace: '*'
+      server: '*'
+  clusterResourceWhitelist:
+    - group: '*'
+      kind: '*'
+---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
