@@ -1,0 +1,46 @@
+# The node name is the hostname, which hostname-from-dns.service sets from the
+# PTR record at boot (autoinstall/user-data). Never start k3s before it has
+# succeeded, or the node would register under the installer's default name.
+- name: Create systemd drop-in directories
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ item }}.service.d"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop: [hostname-from-dns, k3s]
+
+- name: Keep hostname-from-dns active after it runs
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/hostname-from-dns.service.d/10-remain.conf
+    content: |
+      # Managed by Ansible (roles/k3s). Lets k3s.service Require= it.
+      [Service]
+      RemainAfterExit=yes
+    owner: root
+    group: root
+    mode: '0644'
+  register: k3s_hostname_remain
+
+- name: Make k3s require hostname-from-dns
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/k3s.service.d/10-hostname.conf
+    content: |
+      # Managed by Ansible (roles/k3s).
+      [Unit]
+      Requires=hostname-from-dns.service
+      After=hostname-from-dns.service
+    owner: root
+    group: root
+    mode: '0644'
+  register: k3s_hostname_dep
+
+- name: Reload systemd
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: k3s_hostname_remain is changed or k3s_hostname_dep is changed
+
+- name: Run hostname-from-dns
+  ansible.builtin.systemd_service:
+    name: hostname-from-dns.service
+    state: started

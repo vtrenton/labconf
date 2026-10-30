@@ -1,0 +1,25 @@
+# Staged in the k3s auto-deploy dir before k3s starts, so the API VIP comes up
+# with the first server.
+- name: Ensure k3s manifests directory exists
+  ansible.builtin.file:
+    path: "{{ k3s_manifests_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Stage kube-vip RBAC
+  ansible.builtin.copy:
+    src: kube-vip-rbac.yaml
+    dest: "{{ k3s_manifests_dir }}/kube-vip-rbac.yaml"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Stage kube-vip DaemonSet
+  ansible.builtin.template:
+    src: kube-vip-ds.yaml.j2
+    dest: "{{ k3s_manifests_dir }}/kube-vip-ds.yaml"
+    owner: root
+    group: root
+    mode: '0644'

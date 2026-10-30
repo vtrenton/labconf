@@ -1,0 +1,17 @@
+# Staged in the k3s auto-deploy dir before k3s starts; k3s installs it with
+# the first server.
+- name: Ensure k3s manifests directory exists
+  ansible.builtin.file:
+    path: "{{ k3s_manifests_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Stage Cilium HelmChart
+  ansible.builtin.template:
+    src: cilium-helmchart.yaml.j2
+    dest: "{{ k3s_manifests_dir }}/cilium.yaml"
+    owner: root
+    group: root
+    mode: '0644'

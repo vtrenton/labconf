@@ -1,0 +1,7 @@
+# Skipped right after a fresh install: k3s just started with this config, and
+# a restart would only bounce the apiserver (and the kube-vip VIP with it).
+- name: Restart k3s
+  ansible.builtin.systemd_service:
+    name: k3s
+    state: restarted
+  when: k3s_install_result is not changed

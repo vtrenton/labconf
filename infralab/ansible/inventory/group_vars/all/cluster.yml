@@ -1,0 +1,18 @@
+# Cluster-wide facts shared by k3s, kube-vip and Cilium.
+cluster_interface: enp2s0
+
+# API server VIP, announced by kube-vip from the moment the first server is up
+k3s_api_vip: 10.0.0.160
+k3s_join_url: "https://{{ k3s_api_vip }}:6443"
+
+k3s_cluster_cidr: 10.40.0.0/16
+k3s_service_cidr: 10.41.0.0/16
+
+# k3s default, on the NVMe root LV
+k3s_data_dir: /var/lib/rancher/k3s
+k3s_manifests_dir: "{{ k3s_data_dir }}/server/manifests"
+
+# LoadBalancer IPs, pinned by annotation. Must be inside the
+# kube-vip-cloud-provider pool (argo-apps/kube-vip-cloud-provider).
+gateway_lb_ip: 10.0.0.165   # Gateway API (argo-apps/gateway pins it too)
+ingress_lb_ip: 10.0.0.166   # Cilium shared Ingress

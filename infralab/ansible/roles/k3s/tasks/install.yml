@@ -1,0 +1,60 @@
+# Installs k3s only if absent. After install, version changes are owned by
+# system-upgrade-controller (infralab/argo-apps); this never upgrades or downgrades.
+- name: Check installed k3s version
+  ansible.builtin.command: /usr/local/bin/k3s --version
+  register: k3s_installed
+  changed_when: false
+  failed_when: false
+
+- name: Download k3s install script
+  ansible.builtin.get_url:
+    url: https://get.k3s.io
+    dest: /usr/local/bin/k3s-install.sh
+    owner: root
+    group: root
+    mode: '0755'
+  when: k3s_installed.rc != 0
+
+- name: Install k3s {{ k3s_version }}
+  ansible.builtin.command: /usr/local/bin/k3s-install.sh
+  environment:
+    INSTALL_K3S_VERSION: "{{ k3s_version }}"
+    INSTALL_K3S_EXEC: server
+    # Started below instead: the script's blocking start fails the whole run on
+    # a transient error (e.g. VIP briefly down) that systemd would retry.
+    INSTALL_K3S_SKIP_START: "true"
+  register: k3s_install_result
+  when: k3s_installed.rc != 0
+
+- name: Start k3s (systemd retries on failure)
+  ansible.builtin.command: systemctl start --no-block k3s
+  when: k3s_install_result is changed
+
+- name: Wait for k3s to be active
+  ansible.builtin.command: systemctl is-active k3s
+  register: k3s_active
+  until: k3s_active.stdout == 'active'
+  retries: 60
+  delay: 5
+  changed_when: false
+  failed_when: false
+  when: k3s_install_result is changed
+
+- name: Fail if k3s never became active
+  ansible.builtin.fail:
+    msg: >-
+      k3s did not become active within 5 minutes; see
+      journalctl -u k3s on {{ inventory_hostname }}
+  when:
+    - k3s_install_result is changed
+    - k3s_active.stdout != 'active'
+
+- name: Note version drift (left for SUC to reconcile)
+  ansible.builtin.debug:
+    msg: >-
+      {{ inventory_hostname }} runs
+      {{ k3s_installed.stdout_lines[0] | default('?') }}; versions.yml says
+      {{ k3s_version }}. Not changing it; SUC owns upgrades.
+  when:
+    - k3s_installed.rc == 0
+    - k3s_version not in k3s_installed.stdout

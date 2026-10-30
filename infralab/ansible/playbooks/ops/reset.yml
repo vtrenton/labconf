@@ -1,0 +1,27 @@
+# reset.yml - DESTROYS the cluster: runs the k3s uninstall script (which also
+# removes /var/lib/rancher/k3s: etcd, images, staged manifests) on every
+# node, then reboots to clear Cilium's BPF state and interfaces.
+#
+#   ansible-playbook playbooks/ops/reset.yml -e confirm_reset=yes
+- name: Reset k3s on all nodes
+  hosts: infracluster
+  become: true
+  gather_facts: false
+
+  pre_tasks:
+    - name: Require explicit confirmation
+      ansible.builtin.assert:
+        that: confirm_reset | default('') == 'yes'
+        fail_msg: "Refusing to reset. Re-run with -e confirm_reset=yes"
+      run_once: true
+      delegate_to: localhost
+
+  tasks:
+    - name: Run k3s uninstall script
+      ansible.builtin.command: /usr/local/bin/k3s-uninstall.sh
+      args:
+        removes: /usr/local/bin/k3s-uninstall.sh
+
+    - name: Reboot
+      ansible.builtin.reboot:
+        reboot_timeout: 900

@@ -1,0 +1,10 @@
+# Bundled components replaced by Cilium + kube-vip (network policy, kube-proxy
+# and flannel are disabled separately in config.yaml.j2).
+k3s_disable:
+  - servicelb   # kube-vip + kube-vip-cloud-provider
+  - traefik     # Cilium Gateway API
+
+k3s_first_server: "{{ groups['infracluster'][0] }}"
+k3s_is_first_server: "{{ inventory_hostname == k3s_first_server }}"
+
+k3s_local_kubeconfig: "{{ lookup('env', 'HOME') }}/.kube/infralab-k3s.yaml"

@@ -1,0 +1,56 @@
+# Installed by the k3s helm-controller. bootstrap: true lets the install job
+# run on the host network before any CNI exists.
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: cilium
+  namespace: kube-system
+spec:
+  repo: https://helm.cilium.io
+  chart: cilium
+  version: "{{ cilium_version }}"
+  targetNamespace: kube-system
+  bootstrap: true
+  valuesContent: |-
+    # k3s serves the apiserver on 127.0.0.1:6444 on every server, so Cilium
+    # does not depend on the VIP.
+    k8sServiceHost: 127.0.0.1
+    k8sServicePort: 6444
+
+    kubeProxyReplacement: true
+    devices: {{ cluster_interface }}
+    rollOutCiliumPods: true
+
+    ipam:
+      mode: cluster-pool
+      operator:
+        clusterPoolIPv4PodCIDRList:
+          - {{ k3s_cluster_cidr }}
+        clusterPoolIPv4MaskSize: 24
+
+    # kube-vip is the only L2 speaker and kube-vip-cloud-provider allocates
+    # LoadBalancer IPs. Cilium's LB-IPAM stays idle (no CiliumLoadBalancerIPPool)
+    # and it never announces.
+    l2announcements:
+      enabled: false
+
+    # Gateway API is the primary way in (CRDs: roles/gateway_api_crds); its
+    # Gateway (argo-apps/gateway) takes {{ gateway_lb_ip }}. Ingress is kept for
+    # legacy charts: one shared Service for all Ingresses, pinned to
+    # {{ ingress_lb_ip }}.
+    gatewayAPI:
+      enabled: true
+    ingressController:
+      enabled: true
+      default: true
+      loadbalancerMode: shared
+      service:
+        annotations:
+          kube-vip.io/loadbalancerIPs: "{{ ingress_lb_ip }}"
+
+    hubble:
+      enabled: true
+      relay:
+        enabled: true
+      ui:
+        enabled: true

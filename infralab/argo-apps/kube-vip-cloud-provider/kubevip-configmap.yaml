@@ -1,0 +1,10 @@
+# The cluster's LoadBalancer pool: exactly two addresses, each pinned by
+# annotation. .165 = the shared Gateway (../gateway), .166 = Cilium's shared
+# Ingress (legacy). Everything exposed routes through them on L7 rules.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubevip
+  namespace: kube-system
+data:
+  range-global: 10.0.0.165-10.0.0.166

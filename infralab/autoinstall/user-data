@@ -98,6 +98,7 @@ autoinstall:
 
           [Service]
           Type=oneshot
+          RemainAfterExit=yes
           ExecStart=/usr/local/sbin/hostname-from-dns
 
           [Install]

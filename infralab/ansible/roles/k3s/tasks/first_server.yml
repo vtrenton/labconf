@@ -1,0 +1,25 @@
+- name: Wait for cluster join token
+  ansible.builtin.wait_for:
+    path: "{{ k3s_data_dir }}/server/token"
+
+- name: Wait for kube-vip to bring up the API server VIP
+  ansible.builtin.wait_for:
+    host: "{{ k3s_api_vip }}"
+    port: 6443
+    timeout: 600
+  delegate_to: localhost
+  become: false
+
+- name: Fetch admin kubeconfig to this machine
+  ansible.builtin.fetch:
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: "{{ k3s_local_kubeconfig }}"
+    flat: true
+
+- name: Point local kubeconfig at the API server VIP
+  ansible.builtin.replace:
+    path: "{{ k3s_local_kubeconfig }}"
+    regexp: 'https://127\.0\.0\.1:6443'
+    replace: "https://{{ k3s_api_vip }}:6443"
+  delegate_to: localhost
+  become: false

@@ -1,0 +1,20 @@
+# Gateway API CRDs (standard channel), staged in the k3s auto-deploy dir so
+# they exist before cilium-operator starts: the operator only enables its
+# Gateway API controller if the CRDs are present at startup. The 00- prefix
+# sorts the file ahead of cilium.yaml.
+- name: Ensure k3s manifests directory exists
+  ansible.builtin.file:
+    path: "{{ k3s_manifests_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Stage Gateway API {{ gateway_api_version }} CRDs
+  ansible.builtin.get_url:
+    url: "https://github.com/kubernetes-sigs/gateway-api/releases/download/{{ gateway_api_version }}/standard-install.yaml"
+    dest: "{{ k3s_manifests_dir }}/00-gateway-api-crds.yaml"
+    checksum: "{{ gateway_api_checksum }}"
+    owner: root
+    group: root
+    mode: '0644'

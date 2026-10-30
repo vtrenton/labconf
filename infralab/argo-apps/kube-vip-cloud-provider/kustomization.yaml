@@ -1,0 +1,7 @@
+# Allocates LoadBalancer IPs from the kubevip ConfigMap; kube-vip (staged by
+# infralab/ansible/roles/kube_vip) announces them over ARP.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - https://raw.githubusercontent.com/kube-vip/kube-vip-cloud-provider/v0.0.13/manifest/kube-vip-cloud-controller.yaml
+  - kubevip-configmap.yaml

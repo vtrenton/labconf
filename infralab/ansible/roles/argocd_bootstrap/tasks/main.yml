@@ -1,0 +1,21 @@
+# Stages Argo CD and the root Application in the k3s auto-deploy dir. Safe
+# before k3s starts; k3s retries each file every 15s until it applies.
+# Everything after this hand-off is owned by Argo CD (infralab/argo-apps/).
+- name: Ensure k3s manifests directory exists
+  ansible.builtin.file:
+    path: "{{ k3s_manifests_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Stage Argo CD manifests
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ k3s_manifests_dir }}/{{ item.dest }}"
+    owner: root
+    group: root
+    mode: '0644'
+  loop:
+    - { src: argocd-helmchart.yaml.j2, dest: argocd.yaml }
+    - { src: argocd-root-app.yaml.j2, dest: argocd-root-app.yaml }

@@ -1,0 +1,20 @@
+# Every pinned version in one place.
+
+# Fresh installs / new nodes only. Running nodes are upgraded by the SUC Plan
+# in infralab/argo-apps/system-upgrade-controller; bump this in the same commit.
+k3s_version: "v1.36.5+k3s1"
+
+kube_vip_version: "v1.0.0"
+
+# Cilium upgrades: one minor at a time, then re-stage with --tags cilium.
+cilium_version: "1.20.4"
+
+# Must match what cilium_version supports (Cilium 1.20: v1.6.3).
+# Re-stage with --tags gateway_api_crds.
+gateway_api_version: "v1.6.3"
+gateway_api_checksum: "sha256:356c2b8e286a964dc20995435659ad1095386329974793af10bbfe3eff977fe5"
+
+argocd_chart_version: "10.11.6"
+
+# kube-vip-cloud-provider and system-upgrade-controller are pinned in their
+# infralab/argo-apps/ kustomizations.

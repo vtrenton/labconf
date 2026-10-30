@@ -1,0 +1,34 @@
+# cluster.yml
+# HA k3s with embedded etcd; all three nodes are servers and run workloads.
+# Bundled networking is disabled: Cilium is the CNI, kube-proxy replacement
+# and Gateway API; kube-vip does all L2 (API VIP + LoadBalancer IPs).
+# The addon roles only stage manifests into the k3s auto-deploy dir, so they
+# run before k3s is installed and come up with it.
+#
+# Day-2 re-stage of one component:
+#   --tags kube_vip | gateway_api_crds | cilium | argocd
+
+# serial: 1 so the first server initializes etcd before the others join,
+# and joins happen one at a time.
+- name: k3s servers
+  hosts: infracluster
+  become: true
+  gather_facts: false
+  serial: 1
+  roles:
+    - { role: kube_vip, tags: [kube_vip] }
+    - { role: gateway_api_crds, tags: [gateway_api_crds] }
+    - { role: cilium, tags: [cilium] }
+    - { role: argocd_bootstrap, tags: [argocd] }
+    - { role: k3s, tags: [k3s] }
+
+# Nodes only go Ready once Cilium is running
+- name: Wait for cluster to be Ready
+  hosts: "{{ groups['infracluster'][0] }}"
+  become: true
+  gather_facts: false
+  tags: [k3s]
+  tasks:
+    - name: Wait for all nodes to be Ready
+      ansible.builtin.command: k3s kubectl wait --for condition=Ready nodes --all --timeout=900s
+      changed_when: false

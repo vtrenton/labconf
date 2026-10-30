@@ -1,0 +1,22 @@
+# k3s upgrades. To upgrade, bump `version` here and k3s_version in
+# infralab/ansible/inventory/group_vars/all/versions.yml in the same commit
+# (that one only affects new installs). One minor version at a time.
+# All three nodes are servers; one at a time keeps 2/3 etcd quorum.
+apiVersion: upgrade.cattle.io/v1
+kind: Plan
+metadata:
+  name: server-plan
+  namespace: system-upgrade
+spec:
+  version: v1.36.5+k3s1
+  concurrency: 1
+  cordon: true
+  nodeSelector:
+    matchExpressions:
+      - key: node-role.kubernetes.io/control-plane
+        operator: In
+        values:
+          - "true"
+  serviceAccountName: system-upgrade
+  upgrade:
+    image: rancher/k3s-upgrade

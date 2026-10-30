@@ -1,0 +1,20 @@
+# The single entry point for exposed infra services, on 10.0.0.165 (the whole
+# kube-vip-cloud-provider pool). Attach HTTPRoutes from any namespace with:
+#   parentRefs: [{name: infra, namespace: gateway}]
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: infra
+  namespace: gateway
+spec:
+  gatewayClassName: cilium
+  infrastructure:
+    annotations:
+      kube-vip.io/loadbalancerIPs: 10.0.0.165
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: All

@@ -9,7 +9,8 @@ Server 26.04 minimal. Every node runs all k3s roles.
 |---|---|
 | **Network** | Everything per-node. DHCP reservation (MAC -> IP), PTR record in `binddns/` (IP -> hostname). |
 | **`autoinstall/`** | Everything OS-level, identical on all nodes: disk layout, LUKS + TPM unlock, user, SSH, sudo, packages, hostname-from-DNS. |
-| **`ansible/`** | k3s install and config, plus day-2 ops playbooks. |
+| **`ansible/`** | Bootstrap of k3s and what must exist before Argo CD can run: kube-vip, Gateway API CRDs, Cilium, Argo CD. Plus day-2 ops playbooks. |
+| **`argo-apps/`** | Everything after bootstrap (Argo CD app-of-apps): system-upgrade-controller, kube-vip-cloud-provider, the shared Gateway. |
 
 Nodes are cattle: rebuilding one is boot the USB, wait, run Ansible.
 
@@ -63,6 +64,29 @@ from the box, not a stolen box. To tighten it, restore the factory Secure Boot
 keys in the BIOS and enable Secure Boot (Ubuntu's signed shim/GRUB/kernel
 boot as-is), before installing.
 
+## Cluster
+
+All three nodes are k3s servers (embedded etcd, no taint, all run workloads).
+
+| | |
+|---|---|
+| API server VIP | `10.0.0.160:6443` (`infracluster`), kube-vip ARP, up with the first server |
+| LoadBalancer pool | `10.0.0.165-10.0.0.166`: kube-vip-cloud-provider allocates, kube-vip announces |
+| Ingress | Gateway API first: Cilium Gateway `gateway/infra` on `10.0.0.165` (`parentRefs: [{name: infra, namespace: gateway}]`). Legacy `Ingress` resources: Cilium shared ingress (default IngressClass `cilium`) on `10.0.0.166`. |
+| CNI | Cilium: kube-proxy replacement, Gateway API (Envoy), Hubble. No Cilium L2 / LB-IPAM pools. |
+| Pods / Services | `10.40.0.0/16` / `10.41.0.0/16` (distinct from pilab for a future ClusterMesh) |
+| Kubeconfig | `~/.kube/infralab-k3s.yaml` (fetched by the playbook, points at the VIP) |
+
+Bring it up (from `infralab/ansible/`):
+
+```
+ansible-playbook playbooks/cluster.yml
+```
+
+Upgrades: k3s via the SUC Plan in `argo-apps/system-upgrade-controller`; Cilium,
+kube-vip, Gateway API CRDs and Argo CD via `inventory/group_vars/all/versions.yml`
+and a re-stage with `--tags <role>`.
+
 ## Day 2
 
 From `infralab/ansible/` (`source ansible-configure.sh` first):
@@ -71,3 +95,4 @@ From `infralab/ansible/` (`source ansible-configure.sh` first):
 |---|---|
 | Update packages, reboot only where required, one node at a time | `ansible-playbook playbooks/ops/update-and-reboot.yml` |
 | Rolling reboot | `ansible-playbook playbooks/ops/rolling-reboot.yml` |
+| Tear down k3s on every node (destructive) | `ansible-playbook playbooks/ops/reset.yml -e confirm_reset=yes` |
