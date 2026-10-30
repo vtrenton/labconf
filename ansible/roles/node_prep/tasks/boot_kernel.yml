@@ -80,13 +80,12 @@
     force: false
     mode: '0755'
 
-# Rescue path: `reboot "0 tryboot"` boots the Pi OS kernel once
-- name: Point tryboot.txt at the Pi OS kernel
-  ansible.builtin.copy:
-    src: "{{ node_prep_firmware_dir }}/config.txt.rpi"
-    dest: "{{ node_prep_firmware_dir }}/tryboot.txt"
-    remote_src: true
-    mode: '0755'
+# tryboot can't be triggered from Debian's kernel (mainline firmware driver
+# doesn't pass the reboot flag), so don't leave a misleading tryboot.txt.
+- name: Remove tryboot.txt
+  ansible.builtin.file:
+    path: "{{ node_prep_firmware_dir }}/tryboot.txt"
+    state: absent
 
 - name: Boot Debian kernel from config.txt
   ansible.builtin.template:

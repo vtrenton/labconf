@@ -29,7 +29,7 @@
       - kernel_btf.stat.exists
     fail_msg: >-
       {{ inventory_hostname }} booted {{ booted_kernel.stdout }}
-      (memory cgroup / BTF missing?). Rescue: reboot "0 tryboot" boots the
-      Pi OS kernel; check {{ node_prep_firmware_dir }}/config.txt and
-      {{ node_prep_firmware_dir }}/{{ node_prep_boot_subdir }}/.
+      (memory cgroup / BTF missing?). Rescue to the Pi OS kernel: cp
+      {{ node_prep_firmware_dir }}/config.txt.rpi {{ node_prep_firmware_dir }}/config.txt
+      and reboot.
     quiet: true
