@@ -1,0 +1,18 @@
+# rolling-reboot.yml - reboot every node, one at a time.
+#
+#   ansible-playbook playbooks/ops/rolling-reboot.yml
+- name: Rolling reboot of all cluster nodes
+  hosts: infracluster
+  become: true
+  gather_facts: false
+  serial: 1               # one node down at a time keeps 2/3 quorum
+  any_errors_fatal: true
+
+  tasks:
+    - name: Reboot the host
+      ansible.builtin.reboot:
+        reboot_timeout: 900
+        post_reboot_delay: 10
+
+    - name: Confirm node is back up
+      ansible.builtin.ping:

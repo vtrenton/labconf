@@ -1,0 +1,106 @@
+#cloud-config
+# Ubuntu Server 26.04 autoinstall for every infralab node. Identical on all
+# nodes: the network supplies what differs (IP from the DHCP reservation,
+# hostname from the PTR record for that IP). See README.md.
+#
+# ERASES THE LARGEST DISK.
+autoinstall:
+  version: 1
+  source:
+    id: ubuntu-server-minimal
+  kernel:
+    package: linux-generic
+  locale: en_US.UTF-8
+  keyboard:
+    layout: us
+  updates: all
+
+  network:
+    version: 2
+    ethernets:
+      lan:
+        match:
+          name: "en*"
+        dhcp4: true
+
+  # EFI + /boot + LUKS2 -> LVM -> / (100G root LV, rest of the VG free).
+  # This passphrase only exists until late-commands wipe it, so it is not a
+  # secret.
+  storage:
+    layout:
+      name: lvm
+      sizing-policy: scaled
+      password: install-only-wiped-before-first-boot
+
+  ssh:
+    install-server: true
+    allow-pw: false
+
+  packages:
+    - tpm2-tools   # dracut's tpm2-tss module requires the tpm2 binary
+
+  # Root volume unlock: TPM2 bound to PCR 7 (Secure Boot state/keys) plus a
+  # recovery key in /root/luks-recovery-key; the install passphrase is wiped.
+  # Any failure aborts the install.
+  late-commands:
+    - curtin in-target -- sh -c 'echo "add_dracutmodules+=\" tpm2-tss \"" > /etc/dracut.conf.d/90-tpm2.conf'
+    - curtin in-target -- sed -i -E '/^#/! s/^(\S+\s+\S+\s+\S+\s+\S*luks\S*)$/\1,tpm2-device=auto/' /etc/crypttab
+    - >-
+      curtin in-target -- sh -euc '
+      dev=$(blkid -t TYPE=crypto_LUKS -o device | head -n1);
+      export PASSWORD=install-only-wiped-before-first-boot;
+      systemd-cryptenroll --tpm2-device=auto --tpm2-pcrs=7 "$dev";
+      umask 077; systemd-cryptenroll --recovery-key "$dev" > /root/luks-recovery-key;
+      test -s /root/luks-recovery-key;
+      systemd-cryptenroll --wipe-slot=password "$dev";
+      systemd-cryptenroll "$dev"'
+    - curtin in-target -- update-initramfs -u -k all
+
+  # cloud-init config for the installed system's first boot.
+  user-data:
+    preserve_hostname: true   # hostname comes from DNS, not cloud-init
+    users:
+      - name: sysadmin
+        gecos: admin
+        groups: [adm, sudo]
+        shell: /bin/bash
+        lock_passwd: true
+        sudo: "ALL=(ALL) NOPASSWD:ALL"
+        ssh_authorized_keys:
+          - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDTMKTkjwdb5qY5hekcTrTEdNXmLE3Yjf4mUJYR8cLClSKfoRThL+s2zmjm4+Ca0dNEEgMHg5VUk569Gc7MRakXTnVL/bvU9SNY5o1xtjJn/edtgoSizzu0XEyVGODNNI0vzVEqh7EncP4jOHzvmdcLXagRsfhdIZ4c45DuP+bJH+x0aV/okgK1hC/Ko8WbALpoBi+JaBP6UgHXNoVaucb/odmm+0Ly9hcNwG0J4F94k1VLa86rNV6INqxJZb46+0QIEISPy93P0IdMLBABUib18ONonou6rs/n2Ed+I0THRU4vUMW2gMW9JedfGlK0KaRlfAFD2KPYKqCrI09aFpgRyW4ID0M3C758oppV4478bIaMHjBUxExpP6XRK8Mf4KLAe0Tjhs3NwUKdRGHQebwZIs3ZyIsZRJtsvk7I1KT0y0l7AvgQUbGztMZOEN/Ibg+bTLJKvD97nBlc8l5J51xWFvRIsRONzEtslksXvjOQu8Q4Zy7hpvjm1KMTiGtbSdkeHS/ZN9Y5NhQ08Umd9sq7CZrkpul4Cnc5zsi0DoqVS03piGnb4yB2pjfHJscapqmwqqFV7eC1DNW8wZkuTbYAF5lmd4/8UdtsiUMFqWaW1d7EFZ7Xr23M/LKX9k/ub8ofHHEfsKcK3iSZ/5NEgiuaSNmDBBdWMstACygxIGRvLw==
+    write_files:
+      - path: /usr/local/sbin/hostname-from-dns
+        permissions: "0755"
+        content: |
+          #!/bin/sh
+          # Set the hostname from the PTR record of the default-route address.
+          set -eu
+          ip=$(ip -4 route get 1.1.1.1 | sed -n 's/.* src \([0-9.]*\).*/\1/p')
+          name=
+          for _ in $(seq 30); do
+            name=$(getent hosts "$ip" | awk '{print $2}')
+            [ -n "$name" ] && break
+            sleep 2
+          done
+          [ -n "$name" ] || { echo "no PTR record for $ip" >&2; exit 1; }
+          short=${name%%.*}
+          [ "$(hostname)" = "$short" ] || hostnamectl set-hostname "$short"
+          if [ "$name" != "$short" ]; then entry="$name $short"; else entry=$short; fi
+          sed -i "s/^127\.0\.1\.1\s.*/127.0.1.1 $entry/" /etc/hosts
+          echo "hostname: $short ($ip)"
+      - path: /etc/systemd/system/hostname-from-dns.service
+        content: |
+          [Unit]
+          Description=Set hostname from reverse DNS
+          Wants=network-online.target
+          After=network-online.target
+          Before=k3s.service
+
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/local/sbin/hostname-from-dns
+
+          [Install]
+          WantedBy=multi-user.target
+    runcmd:
+      - [systemctl, enable, --now, hostname-from-dns.service]

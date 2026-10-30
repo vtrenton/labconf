@@ -1,0 +1,38 @@
+# update-and-reboot.yml - dist-upgrade every node, one at a time, and reboot
+# only the nodes Ubuntu flags as needing it (/var/run/reboot-required covers
+# kernel, microcode, libc, systemd, ...).
+#
+#   ansible-playbook playbooks/ops/update-and-reboot.yml
+- name: Update all hosts and reboot if required
+  hosts: infracluster
+  become: true
+  gather_facts: false
+  serial: 1               # one node down at a time keeps 2/3 quorum
+  any_errors_fatal: true  # a node that fails to come back stops the run
+
+  tasks:
+    - name: Upgrade all packages
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+        upgrade: dist
+      register: apt_result
+
+    - name: Autoremove unused packages
+      ansible.builtin.apt:
+        autoremove: true
+
+    - name: Autoclean package cache
+      ansible.builtin.apt:
+        autoclean: true
+
+    - name: Check whether a reboot is required
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+      register: reboot_required
+
+    - name: Reboot
+      ansible.builtin.reboot:
+        reboot_timeout: 900
+        post_reboot_delay: 10
+      when: reboot_required.stat.exists
