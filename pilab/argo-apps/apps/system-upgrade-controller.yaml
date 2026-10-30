@@ -8,7 +8,7 @@ spec:
   source:
     repoURL: https://github.com/vtrenton/labconf
     targetRevision: HEAD
-    path: argo-apps/system-upgrade-controller
+    path: pilab/argo-apps/system-upgrade-controller
   destination:
     server: https://kubernetes.default.svc
     namespace: system-upgrade

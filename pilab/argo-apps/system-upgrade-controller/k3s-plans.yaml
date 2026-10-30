@@ -1,5 +1,5 @@
 # k3s upgrades. To upgrade, bump `version` in BOTH plans, and k3s_version in
-# ansible/inventory/group_vars/all/versions.yml in the same commit (that one
+# pilab/ansible/inventory/group_vars/all/versions.yml in the same commit (that one
 # only affects new installs).
 # One minor version at a time. Servers go first; agents wait for server-plan.
 apiVersion: upgrade.cattle.io/v1

@@ -1,5 +1,5 @@
 # Installs k3s only if absent. After install, version changes are owned by
-# system-upgrade-controller (argo-apps); this never upgrades or downgrades.
+# system-upgrade-controller (pilab/argo-apps); this never upgrades or downgrades.
 - name: Check installed k3s version
   ansible.builtin.command: /usr/local/bin/k3s --version
   register: k3s_installed

@@ -4,13 +4,18 @@ A 7-node Raspberry Pi 4 Kubernetes lab: HA k3s with embedded etcd, Cilium
 for networking, Traefik for Gateway API/Ingress, and Argo CD for everything
 after bootstrap.
 
+This directory is one cluster in the
+[labconf](https://github.com/vtrenton/labconf) repo. Paths below are relative
+to `pilab/` unless they start with `pilab/`, which is how Argo CD sees them
+(relative to the repo root).
+
 | Piece | Role |
 |---|---|
 | k3s (embedded etcd) | 3 masters (`10.0.0.11-13`), etcd on a USB SSD; 4 workers (`10.0.0.14-17`), SD card only |
 | kube-vip | API server VIP `10.0.0.10:6443`, ARP from the masters |
 | Cilium | CNI + kube-proxy replacement, LB-IPAM pool `10.0.0.20-25`, L2 (ARP) announcements from workers only |
 | Traefik (bundled with k3s) | Gateway API + Ingress on `10.0.0.20` (`kube-system/traefik-gateway`) |
-| Argo CD | App-of-apps from `argo-apps/apps` in this repo |
+| Argo CD | App-of-apps from `pilab/argo-apps/apps` in this repo |
 | system-upgrade-controller | k3s upgrades via Plans in git |
 
 ## Why the nodes run Debian's kernel and a custom device tree overlay
@@ -135,7 +140,8 @@ for the UART's Bluetooth node plus blocking `hci_uart`/`btbcm`.
 ## Repo layout
 
 ```
-.
+pilab/
+├── README.md
 ├── ansible/                    # bootstrap: nodes, k3s, and what must exist before Argo CD
 │   ├── ansible.cfg             # inventory + roles path (no -i needed)
 │   ├── requirements.yml        # ansible.posix, community.general
@@ -162,11 +168,16 @@ for the UART's Bluetooth node plus blocking `hci_uart`/`btbcm`.
 │       ├── cilium/             # HelmChart + LB pool / L2 policy
 │       ├── traefik/            # HelmChartConfig for bundled Traefik
 │       └── argocd_bootstrap/   # Argo CD HelmChart + root Application
-├── argo-apps/                  # everything after bootstrap (Argo CD)
-│   ├── apps/                   # Application manifests only (root syncs this dir)
-│   └── system-upgrade-controller/  # SUC + k3s upgrade Plans
-└── binddns/                    # lab DNS (BIND) config and zones
+└── argo-apps/                  # everything after bootstrap (Argo CD)
+    ├── apps/                   # Application manifests only (root syncs this dir)
+    └── system-upgrade-controller/  # SUC + k3s upgrade Plans
 ```
+
+Lab DNS (BIND config and zones, including the node records) is shared by all
+clusters and lives at the repo root in `binddns/`.
+
+Argo CD Applications reference paths from the **repo root**, so they use the
+`pilab/` prefix: `path: pilab/argo-apps/<name>`.
 
 ### Who owns what
 
@@ -182,7 +193,7 @@ for the UART's Bluetooth node plus blocking `hci_uart`/`btbcm`.
 
 ## Rolling out
 
-From `ansible/`:
+From `pilab/ansible/`:
 
 ```sh
 source ansible-configure.sh                   # ssh-agent + key; must be sourced, not executed
@@ -191,7 +202,7 @@ ansible-playbook playbooks/site.yml           # full build
 ```
 
 Or in stages: `playbooks/prep-nodes.yml`, then `playbooks/cluster.yml`.
-`argo-apps/` must be pushed to `master` on GitHub before Argo CD can sync it.
+`pilab/argo-apps/` must be pushed to `master` on GitHub before Argo CD can sync it.
 
 ### What to expect
 
@@ -213,7 +224,7 @@ Or in stages: `playbooks/prep-nodes.yml`, then `playbooks/cluster.yml`.
 5. **Final check**: all nodes Ready (up to 15 min while Cilium images pull on
    the Pis).
 6. **In-cluster, on its own**: Cilium → Traefik (`10.0.0.20` returns 404 with
-   no routes) → Argo CD → the `root` app syncs `argo-apps/apps` → SUC applies
+   no routes) → Argo CD → the `root` app syncs `pilab/argo-apps/apps` → SUC applies
    its Plans as a no-op on each node (each node is briefly cordoned).
 
 Every playbook is idempotent; re-running after a timeout is safe.
@@ -226,7 +237,7 @@ Every playbook is idempotent; re-running after a timeout is safe.
 | Upgrade k3s (incl. bundled Traefik) | Bump `version` in both SUC Plans **and** `k3s_version` in `versions.yml`, one minor at a time; push |
 | Upgrade Cilium | Bump `cilium_version` (one minor at a time), then `--tags cilium` |
 | Kernel updates | Normal `apt` (`playbooks/ops/update-and-reboot.yml`); the hook syncs the new kernel to `/boot/firmware/debian/` |
-| Add an app | Application YAML in `argo-apps/apps/`, manifests in `argo-apps/<name>/` |
+| Add an app | Application YAML in `argo-apps/apps/` (with `path: pilab/argo-apps/<name>`), manifests in `argo-apps/<name>/` |
 | Wipe and rebuild | `ansible-playbook playbooks/ops/reset.yml -e confirm_reset=yes`, then `site.yml` |
 
 ### Notes

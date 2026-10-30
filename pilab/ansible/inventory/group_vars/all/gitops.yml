@@ -1,4 +1,4 @@
 # Argo CD root Application (app-of-apps); syncs every Application in this path
 argocd_repo_url: https://github.com/vtrenton/labconf
 argocd_repo_revision: HEAD
-argocd_apps_path: argo-apps/apps
+argocd_apps_path: pilab/argo-apps/apps

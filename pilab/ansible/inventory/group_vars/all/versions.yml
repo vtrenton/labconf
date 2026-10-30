@@ -1,7 +1,7 @@
 # Every pinned version in one place.
 
 # Fresh installs / new nodes only. Running nodes are upgraded by the SUC Plans
-# in argo-apps/system-upgrade-controller; bump this in the same commit.
+# in pilab/argo-apps/system-upgrade-controller; bump this in the same commit.
 k3s_version: "v1.36.5+k3s1"
 
 kube_vip_version: "v1.0.0"

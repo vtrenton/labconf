@@ -1,6 +1,6 @@
 # Stages Argo CD and the root Application in the k3s auto-deploy dir. Safe
 # before k3s starts; k3s retries each file every 15s until it applies.
-# Everything after this hand-off is owned by Argo CD (argo-apps/).
+# Everything after this hand-off is owned by Argo CD (pilab/argo-apps/).
 - name: Ensure k3s manifests directory exists
   ansible.builtin.file:
     path: "{{ k3s_manifests_dir }}"
