@@ -2,7 +2,7 @@
 #
 # Boots Debian's generic arm64 kernel with the upstream device tree. The Pi OS
 # kernel lacks BTF (Cilium datapath) and uses 39-bit VA (Envoy). Pi-DT
-# overlays (vc4, tpm-slb9670, disable-wifi) don't apply to the upstream DT.
+# overlays don't apply to the upstream DT; ours live in {{ node_prep_boot_subdir }}/overlays/.
 #
 # Rescue (back to the Pi OS kernel): cp config.txt.rpi config.txt and reboot;
 # if the node won't boot, do the same with the SD card in another machine.
@@ -15,3 +15,9 @@ initramfs {{ node_prep_boot_subdir }}/initrd.img followkernel
 device_tree={{ node_prep_boot_subdir }}/{{ node_prep_boot_dtb }}
 auto_initramfs=0
 disable_overscan=1
+{% if node_prep_dt_overlays %}
+overlay_prefix={{ node_prep_boot_subdir }}/overlays/
+{% for o in node_prep_dt_overlays %}
+dtoverlay={{ o }}
+{% endfor %}
+{% endif %}

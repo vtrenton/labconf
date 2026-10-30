@@ -8,6 +8,10 @@ node_prep_boot_dtb: bcm2711-rpi-4-b.dtb
 node_prep_initramfs_modules:
   - sdhci_iproc
   - mmc_block
+# Device tree overlays for the upstream DT (files/<name>.dts, built on the
+# node, applied by the firmware via config.txt)
+node_prep_dt_overlays:
+  - tpm-slb9670-upstream    # Infineon SLB9670 TPM on SPI0 CE1
 node_prep_blacklist_modules:
   - brcmfmac
   - brcmfmac_wcc
