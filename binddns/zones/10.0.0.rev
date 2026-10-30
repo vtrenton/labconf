@@ -1,6 +1,6 @@
 $TTL 86400      ; Default TTL
 @       IN      SOA     labns.labnet.lan. admin.labnet.lan. (
-                        2024012301  ; Serial
+                        2026103002  ; Serial
                         3600        ; Refresh
                         1800        ; Retry
                         604800      ; Expire
@@ -23,6 +23,8 @@ $TTL 86400      ; Default TTL
 161     IN      PTR     infra1.labnet.lan.
 162     IN      PTR     infra2.labnet.lan.
 163     IN      PTR     infra3.labnet.lan.
+165     IN      PTR     gateway.infra.labnet.lan.
+166     IN      PTR     ingress.infra.labnet.lan.
 
 ; end of zone file
 

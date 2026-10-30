@@ -1,6 +1,6 @@
 $TTL 86400      ; Default TTL
 @       IN      SOA     labns.labnet.lan. admin.labnet.lan. (
-                        2026103001  ; Serial
+                        2026103002  ; Serial
                         3600        ; Refresh
                         1800        ; Retry
                         604800      ; Expire
@@ -23,6 +23,10 @@ infracluster    IN      A       10.0.0.160
 infra1          IN      A       10.0.0.161
 infra2          IN      A       10.0.0.162
 infra3          IN      A       10.0.0.163
+                ; infralab ingress
+gateway.infra   IN      A       10.0.0.165
+*.infra         IN      A       10.0.0.165
+ingress.infra   IN      A       10.0.0.166
 
 ; end of zone file
 
