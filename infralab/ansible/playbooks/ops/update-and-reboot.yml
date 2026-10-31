@@ -1,22 +1,68 @@
-# update-and-reboot.yml - dist-upgrade every node, one at a time, and reboot
-# only the nodes Ubuntu flags as needing it (/var/run/reboot-required covers
-# kernel, microcode, libc, systemd, ...).
+# update-and-reboot.yml - patch every node, one at a time, rebooting only the
+# nodes Ubuntu flags (/var/run/reboot-required: kernel, microcode, libc,
+# systemd, ...). This playbook is the only thing that upgrades packages:
+# unattended upgrades are switched off (autoinstall, and enforced below).
 #
-#   ansible-playbook playbooks/ops/update-and-reboot.yml
+#   ansible-playbook playbooks/ops/update-and-reboot.yml           # patch
+#   ansible-playbook playbooks/ops/update-and-reboot.yml --check   # report only
+#
+# Cluster-aware once k3s is installed: a node is only touched while every k8s
+# node is Ready, and the run waits for it to be Ready again after a reboot.
+# One node down at a time keeps 2/3 etcd quorum.
 - name: Update all hosts and reboot if required
   hosts: infracluster
   become: true
   gather_facts: false
-  serial: 1               # one node down at a time keeps 2/3 quorum
+  serial: 1
   any_errors_fatal: true  # a node that fails to come back stops the run
 
+  vars:
+    # Another server to ask about cluster health while this one reboots
+    k8s_peer: "{{ groups['infracluster'] | difference([inventory_hostname]) | first }}"
+
   tasks:
-    - name: Upgrade all packages
+    - name: Keep this playbook the only thing that upgrades packages
+      ansible.builtin.copy:
+        dest: /etc/apt/apt.conf.d/99-labconf-no-unattended-upgrades
+        content: |
+          // Managed by labconf. Package updates happen only through
+          // playbooks/ops/update-and-reboot.yml.
+          APT::Periodic::Unattended-Upgrade "0";
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Check whether k3s is installed
+      ansible.builtin.stat:
+        path: /usr/local/bin/k3s
+      register: k3s_bin
+
+    - name: Require every k8s node Ready before touching this one
+      ansible.builtin.command: k3s kubectl wait --for=condition=Ready nodes --all --timeout=60s
+      changed_when: false
+      check_mode: false
+      when: k3s_bin.stat.exists
+
+    - name: Refresh package lists
       ansible.builtin.apt:
         update_cache: true
         cache_valid_time: 3600
+      check_mode: false
+
+    - name: List pending upgrades
+      ansible.builtin.shell: apt list --upgradable 2>/dev/null | grep -v '^Listing' || true
+      register: pending
+      changed_when: false
+      check_mode: false
+
+    - name: Show pending upgrades
+      ansible.builtin.debug:
+        msg: "{{ pending.stdout_lines if pending.stdout_lines else 'up to date' }}"
+
+    - name: Upgrade all packages
+      ansible.builtin.apt:
         upgrade: dist
-      register: apt_result
+      when: pending.stdout_lines | length > 0
 
     - name: Autoremove unused packages
       ansible.builtin.apt:
@@ -36,3 +82,19 @@
         reboot_timeout: 900
         post_reboot_delay: 10
       when: reboot_required.stat.exists
+
+    - name: Wait for k3s to be active again
+      ansible.builtin.command: systemctl is-active k3s
+      register: k3s_active
+      until: k3s_active.stdout == 'active'
+      retries: 60
+      delay: 5
+      changed_when: false
+      when: k3s_bin.stat.exists and reboot_required.stat.exists
+
+    - name: Wait for this node to be Ready again
+      ansible.builtin.command: >-
+        k3s kubectl wait --for=condition=Ready node/{{ inventory_hostname }} --timeout=600s
+      delegate_to: "{{ k8s_peer }}"
+      changed_when: false
+      when: k3s_bin.stat.exists and reboot_required.stat.exists

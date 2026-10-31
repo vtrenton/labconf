@@ -236,7 +236,7 @@ Every playbook is idempotent; re-running after a timeout is safe.
 | Re-stage one bootstrap component | `ansible-playbook playbooks/cluster.yml --tags kube_vip\|cilium\|traefik\|argocd` |
 | Upgrade k3s (incl. bundled Traefik) | Bump `version` in both SUC Plans **and** `k3s_version` in `versions.yml`, one minor at a time; push |
 | Upgrade Cilium | Bump `cilium_version` (one minor at a time), then `--tags cilium` |
-| Kernel updates | Normal `apt` (`playbooks/ops/update-and-reboot.yml`); the hook syncs the new kernel to `/boot/firmware/debian/` |
+| Kernel / package updates | `ansible-playbook playbooks/ops/update-and-reboot.yml`: one node at a time, reboots only into a newer Debian `-arm64` kernel and waits for the node to be Ready (`--check` only lists pending updates). It's the only thing that upgrades packages. The hook syncs a new kernel to `/boot/firmware/debian/`. |
 | Add an app | Application YAML in `argo-apps/apps/` (with `path: pilab/argo-apps/<name>`), manifests in `argo-apps/<name>/` |
 | Wipe and rebuild | `ansible-playbook playbooks/ops/reset.yml -e confirm_reset=yes`, then `site.yml` |
 

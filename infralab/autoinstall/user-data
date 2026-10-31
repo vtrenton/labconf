@@ -105,6 +105,13 @@ autoinstall:
 
           [Install]
           WantedBy=multi-user.target
+      # Package updates happen only through ansible/playbooks/ops/
+      # update-and-reboot.yml (which enforces the same file).
+      - path: /etc/apt/apt.conf.d/99-labconf-no-unattended-upgrades
+        content: |
+          // Managed by labconf. Package updates happen only through
+          // playbooks/ops/update-and-reboot.yml.
+          APT::Periodic::Unattended-Upgrade "0";
       # Teleport agent (SSH). Joins with the TPM: the node's EK hash is
       # allowed by the infralab-nodes token, managed by the Teleport operator
       # (infralab/argo-apps/teleport). Until that token exists the agent just

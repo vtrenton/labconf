@@ -1,40 +1,115 @@
-# update-and-reboot.yml
-- name: Update all hosts and reboot if kernel changed
+# update-and-reboot.yml - patch every node, one at a time, rebooting only when
+# the node isn't running the newest installed Debian kernel. This playbook is
+# the only thing that upgrades packages (the image ships no
+# unattended-upgrades; enforced below in case it ever gets installed).
+#
+#   ansible-playbook playbooks/ops/update-and-reboot.yml           # patch
+#   ansible-playbook playbooks/ops/update-and-reboot.yml --check   # report only
+#
+# Cluster-aware once k3s is installed: a node is only touched while every k8s
+# node is Ready, and the run waits for it to be Ready again after a reboot.
+# One node down at a time keeps 2/3 etcd quorum on the masters. No drain:
+# the Pis reboot fast.
+- name: Update all hosts and reboot if the kernel changed
   hosts: picluster
   become: true
   gather_facts: false
-  serial: 1   # reboot hosts one at a time (important for clusters)
+  serial: 1
+  any_errors_fatal: true  # a node that fails to come back stops the run
+
+  vars:
+    # A master other than this node answers cluster-health questions
+    # (agents have no kubeconfig, and this node may be rebooting).
+    k8s_peer: "{{ groups['masters'] | difference([inventory_hostname]) | first }}"
+    k3s_service: "{{ 'k3s' if k3s_role == 'server' else 'k3s-agent' }}"
 
   tasks:
-    - name: Update APT cache
+    - name: Keep this playbook the only thing that upgrades packages
+      ansible.builtin.copy:
+        dest: /etc/apt/apt.conf.d/99-labconf-no-unattended-upgrades
+        content: |
+          // Managed by labconf. Package updates happen only through
+          // playbooks/ops/update-and-reboot.yml.
+          APT::Periodic::Unattended-Upgrade "0";
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Check whether k3s is installed
+      ansible.builtin.stat:
+        path: /usr/local/bin/k3s
+      register: k3s_bin
+
+    - name: Require every k8s node Ready before touching this one
+      ansible.builtin.command: k3s kubectl wait --for=condition=Ready nodes --all --timeout=60s
+      delegate_to: "{{ k8s_peer }}"
+      changed_when: false
+      check_mode: false
+      when: k3s_bin.stat.exists
+
+    - name: Refresh package lists
       ansible.builtin.apt:
-        update_cache: yes
+        update_cache: true
+        cache_valid_time: 3600
+      check_mode: false
+
+    - name: List pending upgrades
+      ansible.builtin.shell: apt list --upgradable 2>/dev/null | grep -v '^Listing' || true
+      register: pending
+      changed_when: false
+      check_mode: false
+
+    - name: Show pending upgrades
+      ansible.builtin.debug:
+        msg: "{{ pending.stdout_lines if pending.stdout_lines else 'up to date' }}"
 
     - name: Upgrade all packages
       ansible.builtin.apt:
         upgrade: dist
-      register: apt_result
+      when: pending.stdout_lines | length > 0
 
     - name: Autoremove unused packages
       ansible.builtin.apt:
-        autoremove: yes
+        autoremove: true
 
     - name: Autoclean package cache
       ansible.builtin.apt:
-        autoclean: yes
+        autoclean: true
 
     - name: Get running kernel version
       ansible.builtin.command: uname -r
       register: running_kernel
       changed_when: false
+      check_mode: false
 
-    - name: Get newest installed kernel version
-      ansible.builtin.shell: "ls -1 /lib/modules | sort -V | tail -1"
+    # Only the Debian -arm64 kernel boots (node_prep, config.txt). The
+    # Raspberry Pi kernels (+rpt-rpi-*) are still installed and sort higher,
+    # so comparing against "newest of /lib/modules" would reboot every run.
+    - name: Get newest installed Debian kernel version
+      ansible.builtin.shell: ls -1d /lib/modules/*-arm64 | xargs -n1 basename | sort -V | tail -1
       register: installed_kernel
       changed_when: false
+      check_mode: false
 
-    - name: Reboot if kernel version changed
+    - name: Reboot into the new kernel
       ansible.builtin.reboot:
-      when:
-        - apt_result is changed
-        - installed_kernel.stdout | trim != running_kernel.stdout | trim
+        reboot_timeout: 1800
+        post_reboot_delay: 10
+      register: kernel_reboot
+      when: installed_kernel.stdout | trim != running_kernel.stdout | trim
+
+    - name: Wait for {{ k3s_service }} to be active again
+      ansible.builtin.command: systemctl is-active {{ k3s_service }}
+      register: k3s_active
+      until: k3s_active.stdout == 'active'
+      retries: 60
+      delay: 5
+      changed_when: false
+      when: k3s_bin.stat.exists and kernel_reboot is changed
+
+    - name: Wait for this node to be Ready again
+      ansible.builtin.command: >-
+        k3s kubectl wait --for=condition=Ready node/{{ inventory_hostname }} --timeout=900s
+      delegate_to: "{{ k8s_peer }}"
+      changed_when: false
+      when: k3s_bin.stat.exists and kernel_reboot is changed

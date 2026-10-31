@@ -125,6 +125,6 @@ From `infralab/ansible/` (`source ansible-configure.sh` first):
 
 | Task | Command |
 |---|---|
-| Update packages, reboot only where required, one node at a time | `ansible-playbook playbooks/ops/update-and-reboot.yml` |
+| Patch OS packages, one node at a time; reboot only where Ubuntu requires it, waiting for each node to be Ready (`--check` to only list pending updates). The only thing that upgrades packages: unattended upgrades are off. | `ansible-playbook playbooks/ops/update-and-reboot.yml` |
 | Rolling reboot | `ansible-playbook playbooks/ops/rolling-reboot.yml` |
 | Tear down k3s on every node (destructive) | `ansible-playbook playbooks/ops/reset.yml -e confirm_reset=yes` |
