@@ -20,6 +20,36 @@ defaultRules:
     kubeSchedulerAlerting: false
     kubeSchedulerRecording: false
 
+# Cardinality (k3s): the kubelet's /metrics endpoint also exposes the embedded
+# apiserver/etcd/scheduler metrics, so the kubelet and apiserver jobs scraped
+# the same large histograms twice (~245k series per cluster, which filled the
+# pilab agent's 512Mi in-memory WAL in ~4h). Drop what no bundled rule or
+# dashboard uses. Overriding metricRelabelings replaces the chart defaults, so
+# those are repeated first.
+kubeApiServer:
+  serviceMonitor:
+    metricRelabelings:
+      # chart default: thin out the duration histograms' buckets
+      - action: drop
+        regex: (etcd_request|apiserver_request_slo|apiserver_request_sli|apiserver_request)_duration_seconds_bucket;(0\.15|0\.2|0\.3|0\.35|0\.4|0\.45|0\.6|0\.7|0\.8|0\.9|1\.25|1\.5|1\.75|2|3|3\.5|4|4\.5|6|7|8|9|15|20|40|45|50)(\.0)?
+        sourceLabels: [__name__, le]
+      # unused by rules/dashboards (the SLO rules use the _sli_ histogram)
+      - action: drop
+        sourceLabels: [__name__]
+        regex: (apiserver_request_duration_seconds|etcd_request_duration_seconds|apiserver_request_body_size_bytes|apiserver_response_sizes|apiserver_watch_list_duration_seconds|apiserver_watch_cache_read_wait_seconds|apiserver_watch_events_sizes)_bucket
+kubelet:
+  serviceMonitor:
+    metricRelabelings:
+      # chart default
+      - action: drop
+        sourceLabels: [__name__, le]
+        regex: (csi_operations|storage_operation_duration)_seconds_bucket;(0.25|2.5|15|25|120|600)(\.0)?
+      # k3s: control-plane metrics on the kubelet endpoint (the apiserver job
+      # already has what the apiserver dashboards and rules use)
+      - action: drop
+        sourceLabels: [__name__]
+        regex: (apiserver|etcd|scheduler|workqueue|aggregator|apiextensions|authentication|authorization|field_validation)_.+
+
 # No receivers yet
 alertmanager:
   enabled: false

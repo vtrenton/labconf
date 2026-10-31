@@ -23,7 +23,7 @@ ExecStart=/usr/bin/cage -s -- /usr/bin/chromium \
   --kiosk --incognito --noerrdialogs --disable-infobars \
   --no-first-run --ozone-platform=wayland --password-store=basic \
   --check-for-update-interval=31536000 \
-  "http://grafana.infra.labnet.lan/?kiosk"
+  "https://grafana.infra.lab.trentonvanderwert.com/?kiosk"
 Restart=always
 RestartSec=5
 
