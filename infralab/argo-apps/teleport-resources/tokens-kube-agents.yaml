@@ -8,7 +8,9 @@ kind: TeleportProvisionToken
 metadata:
   name: infralab-kube-agent
 spec:
-  roles: [Kube]
+  # Must cover every role in the agent's chart values (teleport-kube-agent:
+  # kube,app,discovery), or those services can't join.
+  roles: [Kube, App, Discovery]
   join_method: kubernetes
   kubernetes:
     type: static_jwks
