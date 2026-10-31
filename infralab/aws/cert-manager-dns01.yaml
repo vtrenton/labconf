@@ -1,0 +1,158 @@
+# labconf: keyless Route 53 DNS-01 access for infralab's cert-manager, plus a
+# cost alarm. Account 321051512565, us-east-1.
+#
+# Chain: tbot (infralab) -> X.509 SVID from Teleport Workload Identity ->
+# IAM Roles Anywhere (trust anchor = Teleport's SPIFFE CA) -> temporary
+# credentials for labconf-cert-manager -> TXT records under
+# _acme-challenge.* in lab.trentonvanderwert.com. No access key exists.
+#
+# Cost: ~$0.50/month (the hosted zone; it lives outside this stack). IAM,
+# STS, Roles Anywhere with an *external* CA bundle, CloudFormation and the
+# first two Budgets are free. Never switch the trust anchor to AWS Private CA
+# ($400/month).
+#
+# Deploy / update:
+#   aws cloudformation deploy --stack-name labconf-cert-manager-dns01 \
+#     --template-file infralab/aws/cert-manager-dns01.yaml \
+#     --capabilities CAPABILITY_NAMED_IAM \
+#     --parameter-overrides BudgetEmail=<you@example.com>
+AWSTemplateFormatVersion: "2010-09-09"
+Description: labconf keyless Route 53 DNS-01 for infralab cert-manager (Teleport Workload Identity + IAM Roles Anywhere) and a $5 budget
+
+Parameters:
+  HostedZoneId:
+    Type: String
+    Default: Z06942441FWJASTX1LU8M
+    Description: lab.trentonvanderwert.com (created with the CLI; delegated from Squarespace)
+  SpiffeId:
+    Type: String
+    Default: spiffe://teleport.trentonvanderwert.com/infralab/cert-manager
+    Description: The only SPIFFE ID allowed to assume the role
+  BudgetEmail:
+    Type: String
+    Description: Where budget alerts go
+  BudgetLimitUsd:
+    Type: Number
+    Default: 5
+
+Resources:
+  TeleportSpiffeTrustAnchor:
+    Type: AWS::RolesAnywhere::TrustAnchor
+    Properties:
+      Name: teleport-trentonvanderwert-com-spiffe   # [ a-zA-Z0-9-_] only
+      Enabled: true
+      Source:
+        SourceType: CERTIFICATE_BUNDLE
+        SourceData:
+          # Public certificate: `tctl auth export --type=tls-spiffe` (valid to
+          # 2036-09-02). Update here if the SPIFFE CA is rotated.
+          X509CertificateData: |
+            -----BEGIN CERTIFICATE-----
+            MIICSzCCAfGgAwIBAgIRALmNRLDQfBDcuhtXbwcez4MwCgYIKoZIzj0EAwIwgYQx
+            JzAlBgNVBAoTHnRlbGVwb3J0LnRyZW50b252YW5kZXJ3ZXJ0LmNvbTEnMCUGA1UE
+            AxMedGVsZXBvcnQudHJlbnRvbnZhbmRlcndlcnQuY29tMTAwLgYDVQQFEycyNDY2
+            NDA2ODYyODk3OTUzNjY0ODA5NjkxNjk5MDM3NDc1MTgzMzkwHhcNMjYwOTA1MjIz
+            NjE5WhcNMzYwOTAyMjIzNjE5WjCBhDEnMCUGA1UEChMedGVsZXBvcnQudHJlbnRv
+            bnZhbmRlcndlcnQuY29tMScwJQYDVQQDEx50ZWxlcG9ydC50cmVudG9udmFuZGVy
+            d2VydC5jb20xMDAuBgNVBAUTJzI0NjY0MDY4NjI4OTc5NTM2NjQ4MDk2OTE2OTkw
+            Mzc0NzUxODMzOTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABMllQ3tyqk06UFJp
+            MAnHEeF5kbmSJUpaGyLwNi5klgTX0Qs1r3csN0hOy4sqhfVUdDKyFdSGIu740DbV
+            sWI9+MmjQjBAMA4GA1UdDwEB/wQEAwIBhjAPBgNVHRMBAf8EBTADAQH/MB0GA1Ud
+            DgQWBBQcMGxySBZgg+J5spgPEd+UKuJCrDAKBggqhkjOPQQDAgNIADBFAiAh/kd7
+            qIDAb+ZLi426qmqFwnYX3jS2kuLvnvwHK93U7gIhAKIOrG9OkpQJ1kN0DIN0Rd+3
+            V9LqZYI3HSs1t96iXclW
+            -----END CERTIFICATE-----
+            
+
+  CertManagerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: labconf-cert-manager
+      Description: infralab cert-manager DNS-01 (TXT _acme-challenge.* in lab.trentonvanderwert.com only)
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: rolesanywhere.amazonaws.com
+            Action:
+              - sts:AssumeRole
+              - sts:TagSession
+              - sts:SetSourceIdentity
+            Condition:
+              StringEquals:
+                aws:PrincipalTag/x509SAN/URI: !Ref SpiffeId
+              ArnEquals:
+                aws:SourceArn: !GetAtt TeleportSpiffeTrustAnchor.TrustAnchorArn
+      Policies:
+        - PolicyName: dns01-txt-only
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ChallengeTxtRecordsOnly
+                Effect: Allow
+                Action: route53:ChangeResourceRecordSets
+                Resource: !Sub arn:aws:route53:::hostedzone/${HostedZoneId}
+                Condition:
+                  ForAllValues:StringLike:
+                    route53:ChangeResourceRecordSetsNormalizedRecordNames: ["_acme-challenge.*"]
+                  ForAllValues:StringEquals:
+                    route53:ChangeResourceRecordSetsRecordTypes: ["TXT"]
+              - Sid: ReadZone
+                Effect: Allow
+                Action: route53:ListResourceRecordSets
+                Resource: !Sub arn:aws:route53:::hostedzone/${HostedZoneId}
+              - Sid: WaitForChanges
+                Effect: Allow
+                Action: route53:GetChange
+                Resource: arn:aws:route53:::change/*
+              - Sid: FindZone
+                Effect: Allow
+                Action: route53:ListHostedZonesByName
+                Resource: "*"
+
+  CertManagerProfile:
+    Type: AWS::RolesAnywhere::Profile
+    Properties:
+      Name: labconf-cert-manager
+      Enabled: true
+      DurationSeconds: 3600
+      RoleArns:
+        - !GetAtt CertManagerRole.Arn
+
+  CostBudget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: labconf-monthly
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        BudgetLimit:
+          Amount: !Ref BudgetLimitUsd
+          Unit: USD
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 80
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref BudgetEmail
+        - Notification:
+            NotificationType: FORECASTED
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref BudgetEmail
+
+Outputs:
+  TrustAnchorArn:
+    Value: !GetAtt TeleportSpiffeTrustAnchor.TrustAnchorArn
+  ProfileArn:
+    Value: !GetAtt CertManagerProfile.ProfileArn
+  RoleArn:
+    Value: !GetAtt CertManagerRole.Arn
