@@ -1,0 +1,22 @@
+# App-of-apps for the pilab cluster: the Applications live here in infralab's
+# Argo CD and deploy to cluster "pilab" (through Teleport, see tbot-argocd).
+# pilab's own bootstrap (k3s, kube-vip, Cilium, Traefik, Teleport kube agent)
+# stays in pilab/ansible.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: pilab
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/vtrenton/labconf
+    targetRevision: HEAD
+    path: pilab/argo-apps/apps
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

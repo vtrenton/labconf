@@ -13,3 +13,7 @@ cilium_version: "1.20.4"
 # (v1.36.5+k3s1 ships Traefik 3.7.13, Gateway API v1.6.1).
 
 argocd_chart_version: "10.11.6"
+
+# Teleport kube agent chart: keep in step with the Teleport cluster version
+# (and infralab's autoupdate-version). Re-stage with --tags teleport_kube_agent.
+teleport_kube_agent_chart_version: "18.11.3"

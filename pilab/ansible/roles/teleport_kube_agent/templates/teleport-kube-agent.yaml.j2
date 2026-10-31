@@ -1,0 +1,31 @@
+# Installed by the k3s helm-controller. Registers this cluster in Teleport as
+# kube cluster "pilab" (label lab=pilab). Joins with token pilab-kube-agent
+# (Kubernetes JWKS, infralab/argo-apps/teleport-resources/tokens-kube-agents.yaml):
+# after a rebuild, update this cluster's JWKS there.
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: teleport-kube-agent
+  namespace: kube-system
+spec:
+  repo: https://charts.releases.teleport.dev
+  chart: teleport-kube-agent
+  version: "{{ teleport_kube_agent_chart_version }}"
+  targetNamespace: teleport-agent
+  createNamespace: true
+  # Adopts the release Argo CD used to manage (same resources, same values)
+  takeOwnership: true
+  valuesContent: |-
+    roles: kube
+    enterprise: true
+    proxyAddr: {{ teleport_proxy_addr }}
+    teleportClusterName: {{ teleport_cluster_name }}
+    kubeClusterName: pilab
+    labels:
+      lab: pilab
+    # Service account = release name (teleport-agent:teleport-kube-agent)
+    joinParams:
+      method: kubernetes
+      tokenName: pilab-kube-agent
+    updater:
+      enabled: false

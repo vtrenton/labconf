@@ -1,10 +1,11 @@
+# Synced by infralab's Argo CD (app "pilab") into the pilab cluster.
 # Prometheus agent: scrapes pilab and remote-writes to infralab's Prometheus.
 # Storage, rules, dashboards and Grafana all live on infralab
 # (infralab/argo-apps/monitoring).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: monitoring-agent
+  name: pilab-monitoring-agent
   namespace: argocd
 spec:
   project: default
@@ -21,7 +22,8 @@ spec:
       targetRevision: HEAD
       ref: values
   destination:
-    server: https://kubernetes.default.svc
+    # Registered by infralab's tbot-argocd (Teleport kube access)
+    name: pilab
     namespace: monitoring
   syncPolicy:
     automated:

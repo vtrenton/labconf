@@ -1,7 +1,8 @@
+# Synced by infralab's Argo CD (app "pilab") into the pilab cluster.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: system-upgrade-controller
+  name: pilab-system-upgrade-controller
   namespace: argocd
 spec:
   project: default
@@ -10,7 +11,8 @@ spec:
     targetRevision: HEAD
     path: pilab/argo-apps/system-upgrade-controller
   destination:
-    server: https://kubernetes.default.svc
+    # Registered by infralab's tbot-argocd (Teleport kube access)
+    name: pilab
     namespace: system-upgrade
   syncPolicy:
     automated:

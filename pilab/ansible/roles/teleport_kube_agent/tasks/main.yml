@@ -1,0 +1,18 @@
+# Teleport Kubernetes Service, staged in the k3s auto-deploy dir. It's part of
+# the bootstrap (not Argo CD) because infralab's Argo CD reaches this cluster
+# through it.
+- name: Ensure k3s manifests directory exists
+  ansible.builtin.file:
+    path: "{{ k3s_manifests_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Stage Teleport kube agent HelmChart
+  ansible.builtin.template:
+    src: teleport-kube-agent.yaml.j2
+    dest: "{{ k3s_manifests_dir }}/teleport-kube-agent.yaml"
+    owner: root
+    group: root
+    mode: '0644'

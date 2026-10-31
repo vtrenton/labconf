@@ -1,0 +1,4 @@
+# Teleport cluster this lab joins (kube agent; the SSH agents use node_prep's
+# node_prep_teleport_* defaults).
+teleport_proxy_addr: teleport.aws.trentonvanderwert.com:443
+teleport_cluster_name: teleport.trentonvanderwert.com
