@@ -1,0 +1,19 @@
+# One wildcard certificate for everything behind the Gateway's HTTPS listener.
+# Issued by Let's Encrypt via DNS-01 (cert-manager-issuers); renewed by
+# cert-manager ~30 days before expiry.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: infra-wildcard
+  namespace: gateway
+spec:
+  secretName: infra-wildcard-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt
+  dnsNames:
+    - "*.infra.lab.trentonvanderwert.com"
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always

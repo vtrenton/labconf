@@ -1,0 +1,20 @@
+# Let's Encrypt STAGING (untrusted certs, generous rate limits): for testing changes via Route 53 DNS-01 on
+# lab.trentonvanderwert.com. No account email: Let's Encrypt no longer sends
+# expiry mail, and cert-manager renews on its own.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-staging-account-key
+    solvers:
+      - selector:
+          dnsZones:
+            - lab.trentonvanderwert.com
+        dns01:
+          route53:
+            region: us-east-1
+            hostedZoneID: Z06942441FWJASTX1LU8M

@@ -18,3 +18,17 @@ spec:
       allowedRoutes:
         namespaces:
           from: All
+    # *.infra.lab.trentonvanderwert.com (labns -> .165), Let's Encrypt
+    # wildcard from certificate.yaml
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: "*.infra.lab.trentonvanderwert.com"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: infra-wildcard-tls
+      allowedRoutes:
+        namespaces:
+          from: All

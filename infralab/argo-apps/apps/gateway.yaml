@@ -18,3 +18,11 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      # The Certificate CRD comes from the cert-manager app
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m

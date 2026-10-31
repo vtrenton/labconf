@@ -1,0 +1,32 @@
+# Machine ID for cert-manager: keeps short-lived Route 53 credentials in
+# cert-manager/route53-credentials via Teleport Workload Identity + IAM Roles
+# Anywhere. No AWS key exists anywhere. See teleport-resources/cert-manager-identity.yaml.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tbot
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://charts.releases.teleport.dev
+      chart: tbot
+      # Keep in step with the Teleport cluster version
+      targetRevision: 18.11.3
+      helm:
+        releaseName: tbot
+        valueFiles:
+          - $values/infralab/argo-apps/tbot/values.yaml
+    - repoURL: https://github.com/vtrenton/labconf
+      targetRevision: HEAD
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    # Same namespace as cert-manager: tbot writes the credentials Secret here
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

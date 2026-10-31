@@ -1,0 +1,27 @@
+crds:
+  enabled: true
+  keep: true
+
+# The LAN serves lab.trentonvanderwert.com itself (labns), which would hide
+# the _acme-challenge TXT records; check propagation against public DNS only.
+dns01RecursiveNameservers: "1.1.1.1:53,8.8.8.8:53"
+dns01RecursiveNameserversOnly: true
+
+# Route 53 credentials are "ambient": the AWS SDK reads the shared
+# credentials file that tbot keeps fresh (1h sessions, renewed every 20m).
+# The SDK re-reads it for each challenge.
+extraEnv:
+  - name: AWS_SHARED_CREDENTIALS_FILE
+    value: /var/run/route53/aws_credentials
+  - name: AWS_REGION
+    value: us-east-1
+volumes:
+  - name: route53-credentials
+    secret:
+      secretName: route53-credentials
+      # Written by tbot; cert-manager may start first
+      optional: true
+volumeMounts:
+  - name: route53-credentials
+    mountPath: /var/run/route53
+    readOnly: true

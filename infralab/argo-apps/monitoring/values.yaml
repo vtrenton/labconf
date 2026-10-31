@@ -83,7 +83,7 @@ grafana:
 
   grafana.ini:
     server:
-      root_url: http://grafana.infra.labnet.lan/
+      root_url: https://grafana.infra.lab.trentonvanderwert.com/
     auth:
       disable_login_form: true
     auth.anonymous:
@@ -91,7 +91,7 @@ grafana:
       org_name: Main Org.
       org_role: Viewer
     dashboards:
-      # The TV: http://grafana.infra.labnet.lan/?kiosk
+      # The TV: https://grafana.infra.lab.trentonvanderwert.com/?kiosk
       default_home_dashboard_path: /tmp/dashboards/lab-overview.json
     users:
       default_theme: dark

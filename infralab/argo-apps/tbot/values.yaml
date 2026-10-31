@@ -1,0 +1,28 @@
+# tbot chart values. Service account = release name: cert-manager:tbot (the
+# labconf-cert-manager token allows exactly that).
+clusterName: teleport.trentonvanderwert.com
+teleportProxyAddress: teleport.aws.trentonvanderwert.com:443
+joinMethod: kubernetes
+token: labconf-cert-manager
+
+# No Teleport identity output; only the AWS credentials below
+defaultOutput:
+  enabled: false
+
+services:
+  - type: workload-identity-aws-roles-anywhere
+    name: route53
+    selector:
+      name: infralab-cert-manager
+    # infralab/aws/cert-manager-dns01.yaml (stack labconf-cert-manager-dns01)
+    role_arn: arn:aws:iam::321051512565:role/labconf-cert-manager
+    profile_arn: arn:aws:rolesanywhere:us-east-1:321051512565:profile/4dbbb1df-3dbd-4ceb-8794-ff38ebe1c59e
+    trust_anchor_arn: arn:aws:rolesanywhere:us-east-1:321051512565:trust-anchor/0625cecf-b6ea-4e6a-95bd-992d5771f4f4
+    region: us-east-1
+    # The profile and role cap sessions at 1h
+    session_duration: 1h
+    session_renewal_interval: 20m
+    overwrite_credential_file: true
+    destination:
+      type: kubernetes_secret
+      name: route53-credentials   # key: aws_credentials

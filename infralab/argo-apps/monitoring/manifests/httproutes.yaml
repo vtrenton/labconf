@@ -14,7 +14,8 @@ spec:
       name: infra
       namespace: gateway
   hostnames:
-    - grafana.infra.labnet.lan
+    - grafana.infra.lab.trentonvanderwert.com   # HTTPS (wildcard cert)
+    - grafana.infra.labnet.lan                  # HTTP only, until the TV moves
   rules:
     - matches:
         - path:
