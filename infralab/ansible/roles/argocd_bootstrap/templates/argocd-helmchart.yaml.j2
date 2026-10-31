@@ -11,15 +11,42 @@ spec:
   targetNamespace: argocd
   createNamespace: true
   valuesContent: |-
-    # No SSO yet: log in as admin (argocd/argocd-initial-admin-secret).
+    # SSO: "Log in via Teleport" -> Dex -> Teleport SAML IdP (service provider
+    # "argocd", infralab/argo-apps/teleport-resources/argocd-sso.yaml).
+    # Teleport roles arrive as groups; lab-admin = role:admin, anyone else gets
+    # nothing. The local admin (argocd/argocd-initial-admin-secret) stays as
+    # break-glass.
     dex:
-      enabled: false
+      enabled: true
     configs:
       params:
         # Plain HTTP inside the cluster; Teleport terminates TLS
         server.insecure: true
       cm:
         url: https://argocd.teleport.aws.trentonvanderwert.com
+        dex.config: |
+          connectors:
+            - type: saml
+              id: teleport
+              name: Teleport
+              config:
+                ssoURL: https://teleport.aws.trentonvanderwert.com/enterprise/saml-idp/sso
+                ssoIssuer: https://teleport.aws.trentonvanderwert.com/enterprise/saml-idp/metadata
+                entityIssuer: https://argocd.teleport.aws.trentonvanderwert.com/api/dex/callback
+                redirectURI: https://argocd.teleport.aws.trentonvanderwert.com/api/dex/callback
+                # Teleport SAML IdP signing cert (public; from
+                # /enterprise/saml-idp/metadata, valid to 2036). Update on a
+                # SAML IdP CA rotation.
+                caData: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUQxekNDQXIrZ0F3SUJBZ0lSQUw2bHFRaWNlQm00RHhSQUFVOXZKelV3RFFZSktvWklodmNOQVFFTEJRQXcKZ1lReEp6QWxCZ05WQkFvVEhuUmxiR1Z3YjNKMExuUnlaVzUwYjI1MllXNWtaWEozWlhKMExtTnZiVEVuTUNVRwpBMVVFQXhNZWRHVnNaWEJ2Y25RdWRISmxiblJ2Ym5aaGJtUmxjbmRsY25RdVkyOXRNVEF3TGdZRFZRUUZFeWN5Ck5UTTBNVE0wTnpZMU9UQXlOalUwTXpNM05ERTNPREF6TlRJME9URTFPVGt4TVRFNU9Ea3dIaGNOTWpZd09UQTEKTWpJek5qSXdXaGNOTXpZd09UQXlNakl6TmpJd1dqQ0JoREVuTUNVR0ExVUVDaE1lZEdWc1pYQnZjblF1ZEhKbApiblJ2Ym5aaGJtUmxjbmRsY25RdVkyOXRNU2N3SlFZRFZRUURFeDUwWld4bGNHOXlkQzUwY21WdWRHOXVkbUZ1ClpHVnlkMlZ5ZEM1amIyMHhNREF1QmdOVkJBVVRKekkxTXpReE16UTNOalU1TURJMk5UUXpNemMwTVRjNE1ETTEKTWpRNU1UVTVPVEV4TVRrNE9UQ0NBU0l3RFFZSktvWklodmNOQVFFQkJRQURnZ0VQQURDQ0FRb0NnZ0VCQU9mVAp4cTZPdi9yREUyQnppNlg1K3VONmJwTDRacjJBblJvNWU2L0plblg2VUpweEpTMWhYY2ZhU0FXUTZvZGN5LzZSCk05UW9OSDlXYU1WU3lSR0dQUXFBZno2Ky9YSGNqb1pkQWZKUm1zWGpYejFOYzljbG5LTGZqMGZES1czTzV2UUEKZ21kWWxXQ2p1NEJxbGVqVUF3RitCaG5aaXNQU001RWxGV2lUT09DcStFNWh4SWZKNzlvRVBjTDNuOXVTSG9RbQpCd2tDeE9pL0lNMC9lUnc3TC93RFAreUpTT2JJZUxkN2dmazFPWU9jdUE3aXdhZWttcFI1bk54U25vckZJQTExCnhyUUJKTXZxUXNzM3VUQ1lXM3NIVXdmS0xuMWdWMHVKWDJDdnZHTWhqQ2dLdGhvVHV6a0FNZGFWeUxoeS9ZS3oKMFdFejVzYkpTOWVnOXRpVmU2OENBd0VBQWFOQ01FQXdEZ1lEVlIwUEFRSC9CQVFEQWdHbU1BOEdBMVVkRXdFQgovd1FGTUFNQkFmOHdIUVlEVlIwT0JCWUVGUDA0NGJ0dzRYQlYrbDFpR1R4ajBDTFhkQUZWTUEwR0NTcUdTSWIzCkRRRUJDd1VBQTRJQkFRQk9DcGl5ODZQY21oRHZxelQwUFluT2M5dHhzamVXWlVoWDBmcWpQQkhaSDFHbVh3Z2gKTjRXaE1GMTBzcEtxSk1mZUV3eFlVYTZCZ2lGRFh5eFM1TGNtU0ZqNGkyMkZ0dHFuWkZtbnY3ZllBSzZSL0xhVwpkTElKeWFkMU5zZTAvbmlKaGpNZ1VqL3MxOElzUHZZQWtUckhPZWFGcCtXejBTS1FXZ1VPVW55UWdzRCtJZnR3CmxKUHJHNUJzaVhudlJmZEZYZUNjUHpnZUI4dC9FZ1NzWWI5WGc2UGVDV0huWmF0c1ZhbE83WkxGNDlONWpJSngKamlwampNVEd6OW9ranhBNENvdDQ1Wkh0UEpvcHZtdWhGUlBadkRJVmp5ZThnTUhMZVlOOHNSVDExMjBLamQyeQp3WWt6Mm1UbnYvNUlQRkU0RkxKcnN5UTZEUnVwam90Q0tmbGgKLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+                nameIDPolicyFormat: transient
+                usernameAttr: username
+                emailAttr: email
+                groupsAttr: groups
+      rbac:
+        policy.default: ""
+        policy.csv: |
+          g, lab-admin, role:admin
+        scopes: "[groups]"
     # Teleport app "argocd"
     server:
       service:

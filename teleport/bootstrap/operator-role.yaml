@@ -26,5 +26,6 @@ spec:
           - workload_identity    # SPIFFE identities for those bots
           - autoupdate_config    # managed updates for agents
           - autoupdate_version
+          - saml_idp_service_provider   # Argo CD SSO (Teleport as SAML IdP)
         verbs: [list, create, read, update, delete]
   deny: {}

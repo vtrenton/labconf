@@ -1,0 +1,25 @@
+# Teleport as the SAML IdP for Argo CD (through Argo CD's bundled Dex, see
+# infralab/ansible/roles/argocd_bootstrap). Logging in requires role
+# app_labels matching this resource's labels (lab-admin has
+# teleport.dev/kubernetes-cluster: infralab).
+apiVersion: resources.teleport.dev/v1
+kind: TeleportSAMLIdPServiceProviderV1
+metadata:
+  name: argocd
+  labels:
+    teleport.dev/kubernetes-cluster: infralab
+spec:
+  # Dex's entityIssuer and ACS (redirectURI)
+  entity_id: https://argocd.teleport.aws.trentonvanderwert.com/api/dex/callback
+  acs_url: https://argocd.teleport.aws.trentonvanderwert.com/api/dex/callback
+  # Plain attribute names for Dex. No email in Teleport: the username stands in.
+  attribute_mapping:
+    - name: username
+      name_format: basic
+      value: uid
+    - name: email
+      name_format: basic
+      value: uid
+    - name: groups
+      name_format: basic
+      value: user.spec.roles
