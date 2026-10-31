@@ -1,0 +1,35 @@
+# kube-prometheus-stack: Prometheus (also receives pilab's metrics over
+# remote write) + Grafana (anonymous, read-only) for both labs.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      targetRevision: 92.16.1
+      helm:
+        releaseName: kube-prometheus-stack
+        valueFiles:
+          - $values/infralab/argo-apps/monitoring/values.yaml
+    - repoURL: https://github.com/vtrenton/labconf
+      targetRevision: HEAD
+      ref: values
+    # HTTPRoutes and dashboards-as-code
+    - repoURL: https://github.com/vtrenton/labconf
+      targetRevision: HEAD
+      path: infralab/argo-apps/monitoring/manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # The operator CRDs are too large for client-side apply's annotation
+      - ServerSideApply=true

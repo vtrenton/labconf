@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: monitoring
+resources:
+  - httproutes.yaml
+# Dashboards as code: each JSON file becomes a ConfigMap the Grafana sidecar
+# loads. Edit the JSON here, not in the UI.
+configMapGenerator:
+  - name: dashboard-lab-overview
+    files:
+      - dashboards/lab-overview.json
+generatorOptions:
+  disableNameSuffixHash: true
+  labels:
+    grafana_dashboard: "1"

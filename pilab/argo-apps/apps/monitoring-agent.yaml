@@ -1,0 +1,33 @@
+# Prometheus agent: scrapes pilab and remote-writes to infralab's Prometheus.
+# Storage, rules, dashboards and Grafana all live on infralab
+# (infralab/argo-apps/monitoring).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring-agent
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      # Keep in step with infralab/argo-apps/apps/monitoring.yaml
+      targetRevision: 92.16.1
+      helm:
+        releaseName: kube-prometheus-stack
+        valueFiles:
+          - $values/pilab/argo-apps/monitoring-agent/values.yaml
+    - repoURL: https://github.com/vtrenton/labconf
+      targetRevision: HEAD
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # The operator CRDs are too large for client-side apply's annotation
+      - ServerSideApply=true

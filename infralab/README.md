@@ -10,7 +10,7 @@ Server 26.04 minimal. Every node runs all k3s roles.
 | **Network** | Everything per-node. DHCP reservation (MAC -> IP), PTR record in `binddns/` (IP -> hostname). |
 | **`autoinstall/`** | Everything OS-level, identical on all nodes: disk layout, LUKS + TPM unlock, user, SSH, sudo, packages, hostname-from-DNS. |
 | **`ansible/`** | Bootstrap of k3s and what must exist before Argo CD can run: kube-vip, Gateway API CRDs, Cilium, Argo CD. Plus day-2 ops playbooks. |
-| **`argo-apps/`** | Everything after bootstrap (Argo CD app-of-apps): system-upgrade-controller, kube-vip-cloud-provider, the shared Gateway. |
+| **`argo-apps/`** | Everything after bootstrap (Argo CD app-of-apps): system-upgrade-controller, kube-vip-cloud-provider, the shared Gateway, monitoring. |
 
 Nodes are cattle: rebuilding one is boot the USB, wait, run Ansible.
 
@@ -86,6 +86,32 @@ ansible-playbook playbooks/cluster.yml
 Upgrades: k3s via the SUC Plan in `argo-apps/system-upgrade-controller`; Cilium,
 kube-vip, Gateway API CRDs and Argo CD via `inventory/group_vars/all/versions.yml`
 and a re-stage with `--tags <role>`.
+
+## Monitoring (both labs)
+
+```
+pilab  ── Prometheus agent (RAM-only WAL) ──remote write──▶ prometheus.infra.labnet.lan/api/v1/write
+                                                              │ (Gateway .165, write path only)
+infralab ─ Prometheus (30d, local-path PVC) ◀─────────────────┘
+              ▲
+           Grafana (anonymous Viewer) ◀── grafana.infra.labnet.lan ◀── TV
+```
+
+- `argo-apps/monitoring/`: kube-prometheus-stack (Prometheus, node-exporter,
+  kube-state-metrics, Grafana) with the values in `values.yaml`, plus
+  `manifests/` (HTTPRoutes, dashboards). pilab runs the same chart in agent
+  mode from `pilab/argo-apps/monitoring-agent/`; keep the chart versions in
+  step.
+- Every series carries `cluster` (`infralab` / `pilab`, set at scrape time)
+  and node-exporter series carry `node`. The bundled dashboards get a cluster
+  picker.
+- Grafana has no admin user and no login form: anonymous Viewer only, no
+  persistence. Dashboards are code: add a JSON file under
+  `manifests/dashboards/` and list it in `manifests/kustomization.yaml`.
+- The TV: `chromium --kiosk http://grafana.infra.labnet.lan/?kiosk` opens the
+  home dashboard, `dashboards/lab-overview.json`.
+- Both endpoints are unauthenticated and LAN-only. Anything on the LAN can
+  view Grafana and push samples to Prometheus.
 
 ## Day 2
 

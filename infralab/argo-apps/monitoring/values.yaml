@@ -1,0 +1,103 @@
+# kube-prometheus-stack values for infralab. pilab runs the same chart in
+# agent mode (pilab/argo-apps/monitoring-agent) and remote-writes here.
+
+# k3s runs etcd, scheduler and controller-manager inside the k3s binary with
+# no separately scrapeable endpoints, and there is no kube-proxy (Cilium).
+kubeEtcd:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+kubeProxy:
+  enabled: false
+defaultRules:
+  rules:
+    alertmanager: false
+    etcd: false
+    kubeControllerManager: false
+    kubeProxy: false
+    kubeSchedulerAlerting: false
+    kubeSchedulerRecording: false
+
+# No receivers yet
+alertmanager:
+  enabled: false
+
+prometheus-node-exporter:
+  prometheus:
+    monitor:
+      # Node name on every node-exporter series (dashboards group by it)
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+
+prometheus:
+  prometheusSpec:
+    # Every scraped series gets cluster=infralab; pilab's arrive with
+    # cluster=pilab. Dashboards use the label to tell them apart.
+    scrapeClasses:
+      - name: cluster-label
+        default: true
+        relabelings:
+          - targetLabel: cluster
+            replacement: infralab
+
+    # pilab's agent pushes to /api/v1/write (exposed on the Gateway, see
+    # manifests/httproutes.yaml). Unauthenticated: LAN only.
+    enableRemoteWriteReceiver: true
+
+    # Pick up ServiceMonitors/PodMonitors/rules from any app, not just this
+    # release
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+
+    retention: 30d
+    retentionSize: 40GB
+    # local-path: on one node's NVMe; the pod is pinned to that node
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 50Gi
+
+grafana:
+  # Stateless: dashboards come from ConfigMaps (sidecar), datasource from the
+  # chart. Nothing is edited in the UI.
+  persistence:
+    enabled: false
+
+  # No admin user at all, so no password to generate, store or drift on every
+  # Argo CD render. Anonymous Viewer only.
+  env:
+    GF_SECURITY_DISABLE_INITIAL_ADMIN_CREATION: "true"
+
+  grafana.ini:
+    server:
+      root_url: http://grafana.infra.labnet.lan/
+    auth:
+      disable_login_form: true
+    auth.anonymous:
+      enabled: true
+      org_name: Main Org.
+      org_role: Viewer
+    dashboards:
+      # The TV: http://grafana.infra.labnet.lan/?kiosk
+      default_home_dashboard_path: /tmp/dashboards/lab-overview.json
+    users:
+      default_theme: dark
+    analytics:
+      reporting_enabled: false
+      check_for_updates: false
+
+  sidecar:
+    dashboards:
+      # Adds a cluster picker to the bundled dashboards
+      multicluster:
+        global:
+          enabled: true

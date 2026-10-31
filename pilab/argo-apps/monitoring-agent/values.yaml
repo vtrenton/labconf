@@ -1,0 +1,52 @@
+# kube-prometheus-stack in agent mode for pilab: scrape + forward only.
+# Everything else (TSDB, rules, Grafana) is on infralab.
+
+# Same k3s / no-kube-proxy exclusions as infralab
+kubeEtcd:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+kubeProxy:
+  enabled: false
+
+# An agent can't evaluate rules; infralab evaluates them over both clusters.
+defaultRules:
+  create: false
+alertmanager:
+  enabled: false
+grafana:
+  enabled: false
+
+prometheus-node-exporter:
+  prometheus:
+    monitor:
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+
+prometheus:
+  agentMode: true
+  prometheusSpec:
+    scrapeClasses:
+      - name: cluster-label
+        default: true
+        relabelings:
+          - targetLabel: cluster
+            replacement: pilab
+
+    remoteWrite:
+      - url: http://prometheus.infra.labnet.lan/api/v1/write
+
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+
+    # The agent's WAL is only a send buffer. Keep it in RAM so it adds no
+    # writes to the workers' SD cards; a restart loses whatever hadn't been
+    # sent yet.
+    storageSpec:
+      emptyDir:
+        medium: Memory
+        sizeLimit: 512Mi
