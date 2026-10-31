@@ -1,0 +1,48 @@
+# Central Argo CD (infralab) deploys to the other clusters through Teleport's
+# Kubernetes proxy: tbot-argocd keeps Argo CD cluster Secrets with short-lived
+# certificates for every kube cluster this bot may access. No kubeconfig or
+# service-account token is stored anywhere, and no API server is exposed.
+#
+# New cluster: give its kube agent a lab=<name> label and add <name> to
+# kubernetes_labels below (and to argocd.clusterSelectors in tbot-argocd).
+apiVersion: resources.teleport.dev/v1
+kind: TeleportRoleV8
+metadata:
+  name: labconf-argocd-deployer
+spec:
+  allow:
+    kubernetes_labels:
+      lab: [pilab]
+    # Argo CD manages CRDs, RBAC and namespaces: cluster-admin
+    kubernetes_groups: [system:masters]
+    kubernetes_resources:
+      - kind: "*"
+        api_group: "*"
+        namespace: "*"
+        name: "*"
+        verbs: ["*"]
+---
+apiVersion: resources.teleport.dev/v1
+kind: TeleportBotV1
+metadata:
+  name: labconf-argocd
+spec:
+  roles:
+    - labconf-argocd-deployer
+---
+# Kubernetes JWKS join from infralab (refresh after a rebuild), service
+# account argocd:tbot-argocd.
+apiVersion: resources.teleport.dev/v2
+kind: TeleportProvisionToken
+metadata:
+  name: labconf-argocd
+spec:
+  roles: [Bot]
+  bot_name: labconf-argocd
+  join_method: kubernetes
+  kubernetes:
+    type: static_jwks
+    static_jwks:
+      jwks: '{"keys":[{"use":"sig","kty":"RSA","kid":"h4q7B0myXc5FwDWeH4RnbMmSnXBu3qiugFjskf5HO2M","alg":"RS256","n":"uW2Qg1ZsYER9n1-DoLvAb_e-OAV4WPTRD2qha3KWoeeNZXCU5phzeJSPjrX8dZe5RG0k2oWdYnH2pzGf_1gr_SGoNwepkve8Al6wkLXSov_xyNBxODIbMLugcKYuvfaV3DNgif_VgJc6eKETOP3go0UVY0Zy6IRvzOA8R75Wm4UqOMttAagzwHpUR64yzcZGXgNlN2QVmkr8COyBsPienpJOIO8b8C2587JiCyIbj4ZG5Se93VAK1iTWKHJaC7_7DBNxhDUn-H-tpS9RAd6FenUGs3PZ_Tx6Abo1YfQ4oLLofx-b5xNVJSgTMWipLleTDK0l2DMWTV2pfk4LIRM97Q","e":"AQAB"}]}'
+    allow:
+      - service_account: "argocd:tbot-argocd"

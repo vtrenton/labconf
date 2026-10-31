@@ -1,0 +1,17 @@
+# tbot chart values. Service account = release name: argocd:tbot-argocd.
+clusterName: teleport.trentonvanderwert.com
+teleportProxyAddress: teleport.aws.trentonvanderwert.com:443
+joinMethod: kubernetes
+token: labconf-argocd
+
+defaultOutput:
+  enabled: false
+
+argocd:
+  enabled: true
+  clusterSelectors:
+    - labels:
+        lab: pilab
+  secretNamespace: argocd
+  # Argo CD destination name = the Teleport kube cluster name ("pilab")
+  clusterNameTemplate: "{{.KubeName}}"

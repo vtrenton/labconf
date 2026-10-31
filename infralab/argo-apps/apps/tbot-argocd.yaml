@@ -1,0 +1,29 @@
+# Registers the other clusters with this Argo CD through Teleport (see
+# teleport-resources/argocd-access.yaml).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tbot-argocd
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://charts.releases.teleport.dev
+      chart: tbot
+      # Keep in step with the Teleport cluster version
+      targetRevision: 18.11.3
+      helm:
+        releaseName: tbot-argocd
+        valueFiles:
+          - $values/infralab/argo-apps/tbot-argocd/values.yaml
+    - repoURL: https://github.com/vtrenton/labconf
+      targetRevision: HEAD
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    # Cluster Secrets must live in Argo CD's namespace
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
