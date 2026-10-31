@@ -20,3 +20,11 @@ spec:
         namespace: "*"
         name: "*"
         verbs: ["*"]
+    rules:
+      # Drive Managed Updates for the lab agents by hand, e.g. for a security
+      # fix outside the regular window:
+      #   tctl autoupdate agents start-update infralab
+      #   tctl autoupdate agents status
+      # The schedule and target version stay in autoupdate.yaml (GitOps).
+      - resources: [autoupdate_agent_rollout]
+        verbs: [read, update]
