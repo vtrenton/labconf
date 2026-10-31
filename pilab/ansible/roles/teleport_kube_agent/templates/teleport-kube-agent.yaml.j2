@@ -17,7 +17,14 @@ spec:
   # on 2026-10-31). Harmless on a fresh cluster.
   takeOwnership: true
   valuesContent: |-
-    roles: kube
+    # kube: cluster access. app: static Teleport apps below. No discovery:
+    # the only app (Hubble UI) is in kube-system, which discovery skips.
+    roles: kube,app
+    apps:
+      - name: hubble-pilab
+        uri: http://hubble-ui.kube-system.svc.cluster.local:80
+        labels:
+          teleport.dev/kubernetes-cluster: pilab
     enterprise: true
     proxyAddr: {{ teleport_proxy_addr }}
     teleportClusterName: {{ teleport_cluster_name }}

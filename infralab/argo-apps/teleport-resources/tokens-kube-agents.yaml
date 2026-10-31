@@ -25,7 +25,9 @@ kind: TeleportProvisionToken
 metadata:
   name: pilab-kube-agent
 spec:
-  roles: [Kube]
+  # Must cover every role in the agent's values
+  # (pilab/ansible/roles/teleport_kube_agent: kube,app).
+  roles: [Kube, App]
   join_method: kubernetes
   kubernetes:
     type: static_jwks

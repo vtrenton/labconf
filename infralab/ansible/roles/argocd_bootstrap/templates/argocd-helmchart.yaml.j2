@@ -14,8 +14,9 @@ spec:
     # SSO: "Log in via Teleport" -> Dex -> Teleport SAML IdP (service provider
     # "argocd", infralab/argo-apps/teleport-resources/argocd-sso.yaml).
     # Teleport roles arrive as groups; lab-admin = role:admin, anyone else gets
-    # nothing. The local admin (argocd/argocd-initial-admin-secret) stays as
-    # break-glass.
+    # nothing. No local accounts: the admin user is disabled, so there is no
+    # password to attack. Break-glass is cluster access (kubectl), e.g. to
+    # re-enable admin.enabled temporarily.
     dex:
       enabled: true
     configs:
@@ -24,6 +25,7 @@ spec:
         server.insecure: true
       cm:
         url: https://argocd.teleport.aws.trentonvanderwert.com
+        admin.enabled: "false"
         dex.config: |
           connectors:
             - type: saml
