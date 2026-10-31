@@ -66,6 +66,13 @@ prometheus-node-exporter:
           targetLabel: node
 
 prometheus:
+  # Teleport app "prometheus-infralab" (UI + query API, behind Teleport login)
+  service:
+    labels:
+      teleport.dev/app: "true"
+    annotations:
+      teleport.dev/name: prometheus-infralab
+      teleport.dev/port: http-web
   prometheusSpec:
     # Every scraped series gets cluster=infralab; pilab's arrive with
     # cluster=pilab. Dashboards use the label to tell them apart.
@@ -101,6 +108,20 @@ prometheus:
               storage: 50Gi
 
 grafana:
+  # Teleport app "grafana" (JWT login, below). The TV keeps the anonymous
+  # Gateway path (manifests/httproutes.yaml).
+  service:
+    labels:
+      teleport.dev/app: "true"
+    annotations:
+      teleport.dev/name: grafana
+      teleport.dev/port: http-web
+      # Grafana builds some absolute URLs from root_url (the LAN name); send
+      # those back to the Teleport app address
+      teleport.dev/app-rewrite: |
+        redirect:
+          - grafana.infra.lab.trentonvanderwert.com
+
   # Stateless: dashboards come from ConfigMaps (sidecar), datasource from the
   # chart. Nothing is edited in the UI.
   persistence:
@@ -116,6 +137,19 @@ grafana:
       root_url: https://grafana.infra.lab.trentonvanderwert.com/
     auth:
       disable_login_form: true
+    # Through Teleport: every request carries a JWT signed by the cluster
+    # (header Teleport-Jwt-Assertion), verified against its JWKS. Users are
+    # created on the fly; lab-admin -> Admin, everyone else Viewer.
+    # Without the header (the TV on the LAN): anonymous Viewer, below.
+    auth.jwt:
+      enabled: true
+      header_name: Teleport-Jwt-Assertion
+      jwk_set_url: https://teleport.aws.trentonvanderwert.com/.well-known/jwks.json
+      expect_claims: '{"iss": "teleport.trentonvanderwert.com"}'
+      username_claim: sub
+      email_claim: sub
+      auto_sign_up: true
+      role_attribute_path: "contains(roles[*], 'lab-admin') && 'Admin' || 'Viewer'"
     auth.anonymous:
       enabled: true
       org_name: Main Org.

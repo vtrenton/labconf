@@ -54,3 +54,10 @@ spec:
         enabled: true
       ui:
         enabled: true
+        # Teleport app "hubble-{{ lab_name }}" (per-cluster name)
+        service:
+          labels:
+            teleport.dev/app: "true"
+          annotations:
+            teleport.dev/name: hubble-{{ lab_name }}
+            teleport.dev/port: http

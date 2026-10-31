@@ -1,5 +1,15 @@
 # teleport-kube-agent chart values for infralab.
-roles: kube
+# kube: cluster access. app + discovery: Services labelled
+# teleport.dev/app: "true" become Teleport apps (https://<name>.teleport.aws.trentonvanderwert.com).
+# Naming: teleport.dev/name on the Service. Central apps use a bare name
+# (grafana, argocd); per-cluster ones end in the cluster (hubble-infralab,
+# prometheus-infralab).
+roles: kube,app,discovery
+kubernetesDiscovery:
+  - types: ["app"]
+    namespaces: ["*"]
+    labels:
+      teleport.dev/app: "true"
 enterprise: true
 proxyAddr: teleport.aws.trentonvanderwert.com:443
 teleportClusterName: teleport.trentonvanderwert.com

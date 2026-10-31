@@ -11,6 +11,20 @@ spec:
   targetNamespace: argocd
   createNamespace: true
   valuesContent: |-
-    # No SSO / web UI login for now
+    # No SSO yet: log in as admin (argocd/argocd-initial-admin-secret).
     dex:
       enabled: false
+    configs:
+      params:
+        # Plain HTTP inside the cluster; Teleport terminates TLS
+        server.insecure: true
+      cm:
+        url: https://argocd.teleport.aws.trentonvanderwert.com
+    # Teleport app "argocd"
+    server:
+      service:
+        labels:
+          teleport.dev/app: "true"
+        annotations:
+          teleport.dev/name: argocd
+          teleport.dev/port: http

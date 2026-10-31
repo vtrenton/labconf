@@ -14,6 +14,9 @@ spec:
     kubernetes_labels:
       lab: [infralab, pilab]
     kubernetes_groups: [system:masters]
+    # Apps discovered by the lab kube agents (teleport.dev/app: "true")
+    app_labels:
+      teleport.dev/kubernetes-cluster: [infralab, pilab]
     kubernetes_resources:
       - kind: "*"
         api_group: "*"

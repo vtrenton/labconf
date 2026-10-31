@@ -16,3 +16,7 @@ k3s_manifests_dir: "{{ k3s_data_dir }}/server/manifests"
 # kube-vip-cloud-provider pool (argo-apps/kube-vip-cloud-provider).
 gateway_lb_ip: 10.0.0.165   # Gateway API (argo-apps/gateway pins it too)
 ingress_lb_ip: 10.0.0.166   # Cilium shared Ingress
+
+# This lab's name: Teleport kube cluster / discovery group, and the suffix of
+# per-cluster Teleport app names (hubble-<lab_name>).
+lab_name: infralab
