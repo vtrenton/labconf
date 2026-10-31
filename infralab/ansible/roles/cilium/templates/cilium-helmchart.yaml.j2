@@ -53,11 +53,6 @@ spec:
       relay:
         enabled: true
       ui:
+        # Teleport app "hubble-infralab": a static app in the kube agent's
+        # values (discovery skips kube-system, where this Service lives)
         enabled: true
-        # Teleport app "hubble-{{ lab_name }}" (per-cluster name)
-        service:
-          labels:
-            teleport.dev/app: "true"
-          annotations:
-            teleport.dev/name: hubble-{{ lab_name }}
-            teleport.dev/port: http

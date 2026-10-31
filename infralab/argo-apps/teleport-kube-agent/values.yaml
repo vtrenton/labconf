@@ -10,6 +10,16 @@ kubernetesDiscovery:
     namespaces: ["*"]
     labels:
       teleport.dev/app: "true"
+
+# Static apps: for Services discovery can't see. Teleport never discovers
+# Services in kube-system or kube-public (isInternalKubeService), and the
+# Cilium chart puts the Hubble UI in kube-system. Same label as discovered
+# apps so lab-admin's app_labels cover it.
+apps:
+  - name: hubble-infralab
+    uri: http://hubble-ui.kube-system.svc.cluster.local:80
+    labels:
+      teleport.dev/kubernetes-cluster: infralab
 enterprise: true
 proxyAddr: teleport.aws.trentonvanderwert.com:443
 teleportClusterName: teleport.trentonvanderwert.com
