@@ -38,6 +38,7 @@ autoinstall:
 
   packages:
     - tpm2-tools   # dracut's tpm2-tss module requires the tpm2 binary
+    - curl         # install-teleport
 
   # Root volume unlock: TPM2 bound to PCR 7 (Secure Boot state/keys) plus a
   # recovery key in /root/luks-recovery-key; the install passphrase is wiped.
@@ -103,5 +104,55 @@ autoinstall:
 
           [Install]
           WantedBy=multi-user.target
+      # Teleport agent (SSH). Joins with the TPM: the node's EK hash is
+      # allowed by the infralab-nodes token, managed by the Teleport operator
+      # (infralab/argo-apps/teleport). Until that token exists the agent just
+      # retries. No secret on the node.
+      - path: /etc/teleport.yaml
+        content: |
+          version: v3
+          teleport:
+            # nodename: the hostname, set from DNS before teleport starts
+            proxy_server: teleport.aws.trentonvanderwert.com:443
+            join_params:
+              method: tpm
+              token_name: infralab-nodes
+            log:
+              output: stderr
+              severity: INFO
+          auth_service:
+            enabled: false
+          proxy_service:
+            enabled: false
+          ssh_service:
+            enabled: true
+            labels:
+              lab: infralab
+      - path: /etc/systemd/system/teleport.service.d/10-hostname.conf
+        content: |
+          # The node registers under its hostname, which comes from DNS.
+          [Unit]
+          Requires=hostname-from-dns.service
+          After=hostname-from-dns.service
+      - path: /usr/local/sbin/install-teleport
+        permissions: "0755"
+        content: |
+          #!/bin/sh
+          # Installs the Teleport agent under Managed Updates. This version only
+          # bootstraps the updater; from then on teleport-update follows the
+          # version the cluster advertises (autoupdate_version).
+          set -eu
+          v=18.11.3
+          sha=d748d7aa6998ed59ff86b71bf78f438205327553badd221ea87288cbc91c2231
+          f=teleport-update-v$v-linux-amd64-bin.tar.gz
+          tmp=$(mktemp -d)
+          trap 'rm -rf "$tmp"' EXIT
+          cd "$tmp"
+          curl -fsSLO "https://cdn.teleport.dev/$f"
+          echo "$sha  $f" | sha256sum -c -
+          tar -xzf "$f"
+          ./teleport/teleport-update enable --proxy teleport.aws.trentonvanderwert.com:443 --group infralab
+          systemctl enable --now teleport
     runcmd:
       - [systemctl, enable, --now, hostname-from-dns.service]
+      - [/usr/local/sbin/install-teleport]

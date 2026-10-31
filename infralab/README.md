@@ -42,6 +42,12 @@ Nodes are cattle: rebuilding one is boot the USB, wait, run Ansible.
   throwaway passphrase, and add the `tpm2-tss` dracut module plus
   `tpm2-device=auto` in crypttab so the initramfs unlocks without a console.
   Any failure aborts the install.
+- **Teleport agent (SSH).** First boot runs `install-teleport`: a
+  checksum-pinned `teleport-update` enrolls the node in Managed Updates (group
+  `infralab`), then `teleport` starts after `hostname-from-dns` and joins with
+  the TPM (token `infralab-nodes`, which allows each node's EK hash; managed by
+  the Teleport operator). A reinstall keeps the same TPM, so the node rejoins on
+  its own. Until the token exists, the agent keeps retrying.
 - **No secrets in the repo.** The user has a locked password (SSH key +
   passwordless sudo), and the only key that opens the disk outside the TPM is
   the recovery key generated on the node.

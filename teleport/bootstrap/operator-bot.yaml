@@ -1,0 +1,12 @@
+# Machine ID bot the operator runs as. It joins with the operator-bot token
+# (render-operator-token.sh) and impersonates the operator role.
+#
+#   tctl create teleport/bootstrap/operator-bot.yaml   (no -f: --force fails for a new bot)
+# (equivalent: tctl bots add operator --roles operator --token operator-bot)
+kind: bot
+version: v1
+metadata:
+  name: operator
+spec:
+  roles:
+    - operator

@@ -1,0 +1,28 @@
+# The Teleport Kubernetes Operator's role (impersonated by the "operator" bot).
+#
+# Scoped down from upstream's fixture-operator-role.yaml (branch/v18) to the
+# resource kinds this repo manages through the operator. Add a kind here, and
+# re-apply, before adding its CRs to infralab/argo-apps/teleport/.
+#
+# Writing roles is effectively Teleport admin: whatever can merge to master
+# can grant itself anything. Accepted risk; see teleport/README.md.
+#
+#   tctl create teleport/bootstrap/operator-role.yaml      (first time)
+#   tctl create -f teleport/bootstrap/operator-role.yaml   (update; -f = --force)
+kind: role
+version: v7
+metadata:
+  name: operator
+  description: Teleport Kubernetes Operator in infralab (labconf GitOps)
+spec:
+  allow:
+    rules:
+      - resources:
+          - role                 # access roles for both labs
+          - token                # kube-agent (Kubernetes JWKS) + node (TPM) join tokens
+          - bot                  # Machine ID bots (e.g. cert-manager's AWS access)
+          - workload_identity    # SPIFFE identities for those bots
+          - autoupdate_config    # managed updates for agents
+          - autoupdate_version
+        verbs: [list, create, read, update, delete]
+  deny: {}
