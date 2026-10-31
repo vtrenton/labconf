@@ -1,0 +1,31 @@
+# Plain HTTP -> HTTPS (301) for every *.infra.lab.trentonvanderwert.com name.
+# The .lan names on the http listener are untouched (grafana-lan, pilab's
+# remote write).
+#
+# Routes for *.infra.lab names must attach to the https listener only
+# (parentRefs[].sectionName: https): one attached to the http listener with an
+# exact hostname would take precedence over this wildcard and skip the redirect.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: http-redirect
+  namespace: gateway
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: infra
+      namespace: gateway
+      sectionName: http
+  hostnames:
+    - "*.infra.lab.trentonvanderwert.com"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301

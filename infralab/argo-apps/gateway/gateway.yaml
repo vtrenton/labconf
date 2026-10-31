@@ -19,7 +19,8 @@ spec:
         namespaces:
           from: All
     # *.infra.lab.trentonvanderwert.com (labns -> .165), Let's Encrypt
-    # wildcard from certificate.yaml
+    # wildcard from certificate.yaml. HTTP for these names redirects here
+    # (http-redirect.yaml); attach their routes with sectionName: https.
     - name: https
       protocol: HTTPS
       port: 443
