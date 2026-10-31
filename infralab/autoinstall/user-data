@@ -39,6 +39,7 @@ autoinstall:
   packages:
     - tpm2-tools   # dracut's tpm2-tss module requires the tpm2 binary
     - curl         # install-teleport
+    - locales      # else cloud-init's locale step apt-installs it on first boot (flaky)
 
   # Root volume unlock: TPM2 bound to PCR 7 (Secure Boot state/keys) plus a
   # recovery key in /root/luks-recovery-key; the install passphrase is wiped.
