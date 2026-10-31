@@ -150,8 +150,8 @@ autoinstall:
           # bootstraps the updater; from then on teleport-update follows the
           # version the cluster advertises (autoupdate_version).
           set -eu
-          v=18.11.3
-          sha=d748d7aa6998ed59ff86b71bf78f438205327553badd221ea87288cbc91c2231
+          v=18.11.8
+          sha=e84a745aefcad10815dfbbbcc4e3fe1c872f51aa4e23fed6f87c1a7827867dd3
           f=teleport-update-v$v-linux-amd64-bin.tar.gz
           tmp=$(mktemp -d)
           trap 'rm -rf "$tmp"' EXIT

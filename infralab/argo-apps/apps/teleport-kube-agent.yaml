@@ -13,7 +13,7 @@ spec:
       chart: teleport-kube-agent
       # Upgrades happen here (no in-cluster updater): keep in step with the
       # Teleport cluster version and autoupdate-version.
-      targetRevision: 18.11.3
+      targetRevision: 18.11.8
       helm:
         releaseName: teleport-kube-agent
         valueFiles:

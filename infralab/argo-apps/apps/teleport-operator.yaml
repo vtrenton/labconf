@@ -16,7 +16,7 @@ spec:
     - repoURL: https://charts.releases.teleport.dev
       chart: teleport-operator
       # Must match the Teleport cluster's major version; bump with it.
-      targetRevision: 18.11.3
+      targetRevision: 18.11.8
       helm:
         releaseName: teleport-operator
         valueFiles:

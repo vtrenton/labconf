@@ -42,5 +42,5 @@ node_prep_storage_fstype: ext4
 node_prep_teleport_proxy: teleport.aws.trentonvanderwert.com:443
 node_prep_teleport_token: pilab-nodes
 node_prep_teleport_update_group: pilab
-node_prep_teleport_bootstrap_version: 18.11.3
-node_prep_teleport_bootstrap_sha256: 4af2b4f563eccae32f7024f7a551e7e5a2d1362cb481af872bd284957bc8ea4f
+node_prep_teleport_bootstrap_version: 18.11.8
+node_prep_teleport_bootstrap_sha256: 9bf88f2726c481d37aeec2710e96af2b26803ad209ce68bc6fe35940641dae9f

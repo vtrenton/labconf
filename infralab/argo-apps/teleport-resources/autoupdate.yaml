@@ -34,9 +34,9 @@ metadata:
   name: autoupdate-version
 spec:
   tools:
-    target_version: 18.11.3
+    target_version: 18.11.8
   agents:
-    start_version: 18.11.3
-    target_version: 18.11.3
+    start_version: 18.11.8
+    target_version: 18.11.8
     schedule: regular
     mode: enabled

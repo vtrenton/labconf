@@ -14,4 +14,4 @@ cilium_version: "1.20.4"
 
 # Teleport kube agent chart: keep in step with the Teleport cluster version
 # (and infralab's autoupdate-version). Re-stage with --tags teleport_kube_agent.
-teleport_kube_agent_chart_version: "18.11.3"
+teleport_kube_agent_chart_version: "18.11.8"

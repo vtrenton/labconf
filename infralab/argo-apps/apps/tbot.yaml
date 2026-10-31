@@ -12,7 +12,7 @@ spec:
     - repoURL: https://charts.releases.teleport.dev
       chart: tbot
       # Keep in step with the Teleport cluster version
-      targetRevision: 18.11.3
+      targetRevision: 18.11.8
       helm:
         releaseName: tbot
         valueFiles:
