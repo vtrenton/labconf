@@ -22,8 +22,11 @@ grafana:
 prometheus-node-exporter:
   prometheus:
     monitor:
+      # action is spelled out (it's the API default) so Argo CD's diff
+      # matches the live object
       relabelings:
-        - sourceLabels: [__meta_kubernetes_pod_node_name]
+        - action: replace
+          sourceLabels: [__meta_kubernetes_pod_node_name]
           targetLabel: node
 
 prometheus:
@@ -33,7 +36,8 @@ prometheus:
       - name: cluster-label
         default: true
         relabelings:
-          - targetLabel: cluster
+          - action: replace
+            targetLabel: cluster
             replacement: pilab
 
     remoteWrite:

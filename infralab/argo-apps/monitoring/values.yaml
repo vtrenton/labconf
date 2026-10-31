@@ -28,8 +28,11 @@ prometheus-node-exporter:
   prometheus:
     monitor:
       # Node name on every node-exporter series (dashboards group by it)
+      # action is spelled out (it's the API default) so Argo CD's diff
+      # matches the live object
       relabelings:
-        - sourceLabels: [__meta_kubernetes_pod_node_name]
+        - action: replace
+          sourceLabels: [__meta_kubernetes_pod_node_name]
           targetLabel: node
 
 prometheus:
@@ -40,7 +43,8 @@ prometheus:
       - name: cluster-label
         default: true
         relabelings:
-          - targetLabel: cluster
+          - action: replace
+            targetLabel: cluster
             replacement: infralab
 
     # pilab's agent pushes to /api/v1/write (exposed on the Gateway, see

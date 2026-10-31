@@ -1,3 +1,6 @@
+# Fields the API server would default (group, kind, weight, the "/" match)
+# are spelled out so Argo CD's diff matches the live objects.
+#
 # Grafana for the TV and browsers on the LAN.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -6,14 +9,23 @@ metadata:
   namespace: monitoring
 spec:
   parentRefs:
-    - name: infra
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: infra
       namespace: gateway
   hostnames:
     - grafana.infra.labnet.lan
   rules:
-    - backendRefs:
-        - name: kube-prometheus-stack-grafana
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: kube-prometheus-stack-grafana
           port: 80
+          weight: 1
 ---
 # Remote-write endpoint for pilab's Prometheus agent. Only the write path is
 # routed; the Prometheus UI and query API stay in-cluster.
@@ -24,7 +36,9 @@ metadata:
   namespace: monitoring
 spec:
   parentRefs:
-    - name: infra
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: infra
       namespace: gateway
   hostnames:
     - prometheus.infra.labnet.lan
@@ -35,5 +49,8 @@ spec:
             value: /api/v1/write
           method: POST
       backendRefs:
-        - name: kube-prometheus-stack-prometheus
+        - group: ""
+          kind: Service
+          name: kube-prometheus-stack-prometheus
           port: 9090
+          weight: 1

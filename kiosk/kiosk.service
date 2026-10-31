@@ -1,0 +1,32 @@
+[Unit]
+Description=Rack display kiosk (cage + chromium)
+After=systemd-user-sessions.service plymouth-quit-wait.service
+After=network-online.target dbus.socket systemd-logind.service getty@tty1.service
+Wants=network-online.target dbus.socket systemd-logind.service
+Conflicts=getty@tty1.service
+ConditionPathExists=/dev/tty1
+
+[Service]
+User=kiosk
+PAMName=kiosk
+EnvironmentFile=/etc/default/kiosk
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+StandardInput=tty-fail
+StandardOutput=journal
+StandardError=journal
+UtmpIdentifier=tty1
+UtmpMode=user
+ExecStart=/usr/bin/cage -s -- /usr/bin/chromium \
+  --kiosk --incognito --noerrdialogs --disable-infobars \
+  --no-first-run --ozone-platform=wayland --password-store=basic \
+  --check-for-update-interval=31536000 \
+  "http://grafana.infra.labnet.lan/?kiosk"
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=graphical.target
+
