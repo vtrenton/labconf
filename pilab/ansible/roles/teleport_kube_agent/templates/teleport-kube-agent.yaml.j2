@@ -13,7 +13,8 @@ spec:
   version: "{{ teleport_kube_agent_chart_version }}"
   targetNamespace: teleport-agent
   createNamespace: true
-  # Adopts the release Argo CD used to manage (same resources, same values)
+  # Adopt existing resources instead of failing (it took over from Argo CD
+  # on 2026-10-31). Harmless on a fresh cluster.
   takeOwnership: true
   valuesContent: |-
     roles: kube

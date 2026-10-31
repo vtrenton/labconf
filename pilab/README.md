@@ -1,8 +1,8 @@
 # pilab
 
 A 7-node Raspberry Pi 4 Kubernetes lab: HA k3s with embedded etcd, Cilium
-for networking, Traefik for Gateway API/Ingress, and Argo CD for everything
-after bootstrap.
+for networking, Traefik for Gateway API/Ingress. Everything after bootstrap
+is deployed by the central Argo CD in infralab, through Teleport.
 
 This directory is one cluster in the
 [labconf](https://github.com/vtrenton/labconf) repo. Paths below are relative
@@ -15,7 +15,8 @@ to `pilab/` unless they start with `pilab/`, which is how Argo CD sees them
 | kube-vip | API server VIP `10.0.0.10:6443`, ARP from the masters |
 | Cilium | CNI + kube-proxy replacement, LB-IPAM pool `10.0.0.20-25`, L2 (ARP) announcements from workers only |
 | Traefik (bundled with k3s) | Gateway API + Ingress on `10.0.0.20` (`kube-system/traefik-gateway`) |
-| Argo CD | App-of-apps from `pilab/argo-apps/apps` in this repo |
+| Argo CD (in infralab) | App-of-apps `pilab` syncs `pilab/argo-apps/apps`; reaches this cluster through Teleport (`tbot-argocd`) |
+| Teleport kube agent | Registers the cluster as `pilab` (`lab=pilab`); staged by Ansible because Argo CD connects through it |
 | system-upgrade-controller | k3s upgrades via Plans in git |
 
 ## Why the nodes run Debian's kernel and a custom device tree overlay
@@ -125,7 +126,7 @@ for the UART's Bluetooth node plus blocking `hci_uart`/`btbcm`.
   apiserver (servers) or client load balancer (agents), so Cilium doesn't
   depend on the VIP.
 - **Everything bootstrap-critical is staged before k3s starts.** kube-vip,
-  Cilium, the Traefik `HelmChartConfig` and Argo CD go into
+  Cilium, the Traefik `HelmChartConfig` and the Teleport kube agent go into
   `/var/lib/k3s/server/manifests` first; k3s applies them in name order and
   retries failures every 15s
   ([k3s auto-deploying manifests](https://docs.k3s.io/installation/packaged-components),
@@ -142,7 +143,7 @@ for the UART's Bluetooth node plus blocking `hci_uart`/`btbcm`.
 ```
 pilab/
 ├── README.md
-├── ansible/                    # bootstrap: nodes, k3s, and what must exist before Argo CD
+├── ansible/                    # bootstrap: nodes, k3s, and what infralab's Argo CD needs to reach the cluster
 │   ├── ansible.cfg             # inventory + roles path (no -i needed)
 │   ├── requirements.yml        # ansible.posix, community.general
 │   ├── inventory/
@@ -152,14 +153,14 @@ pilab/
 │   │       │   ├── cluster.yml     # VIP, CIDRs, data dir, interface
 │   │       │   ├── network.yml     # LB-IPAM pool, Traefik IP
 │   │       │   ├── versions.yml    # every pinned version
-│   │       │   ├── gitops.yml      # Argo CD root app repo/path
+│   │       │   ├── teleport.yml    # Teleport proxy + cluster name (kube agent)
 │   │       │   └── connection.yml  # SSH user/key
 │   │       ├── masters.yml     # k3s_role: server
 │   │       └── workers.yml     # k3s_role: agent
 │   ├── playbooks/
 │   │   ├── site.yml            # prep-nodes + cluster
 │   │   ├── prep-nodes.yml      # node_prep, serial: 1
-│   │   ├── cluster.yml         # masters: kube_vip, cilium, traefik, argocd_bootstrap, k3s; workers: k3s
+│   │   ├── cluster.yml         # masters: kube_vip, cilium, traefik, teleport_kube_agent, k3s; workers: k3s
 │   │   └── ops/                # reset, rolling-reboot, update-and-reboot
 │   └── roles/
 │       ├── node_prep/          # cmdline cgroups, Debian kernel, DT overlays (TPM, Wi-Fi off), sysctls, SSD mount
@@ -167,9 +168,10 @@ pilab/
 │       ├── kube_vip/           # API VIP manifests
 │       ├── cilium/             # HelmChart + LB pool / L2 policy
 │       ├── traefik/            # HelmChartConfig for bundled Traefik
-│       └── argocd_bootstrap/   # Argo CD HelmChart + root Application
-└── argo-apps/                  # everything after bootstrap (Argo CD)
-    ├── apps/                   # Application manifests only (root syncs this dir)
+│       └── teleport_kube_agent/  # Teleport kube agent HelmChart
+└── argo-apps/                  # everything after bootstrap (synced by infralab's Argo CD)
+    ├── apps/                   # Application manifests (destination: pilab), synced by infralab app "pilab"
+    ├── monitoring-agent/       # Prometheus agent values (remote-writes to infralab)
     └── system-upgrade-controller/  # SUC + k3s upgrade Plans
 ```
 
@@ -189,7 +191,8 @@ Argo CD Applications reference paths from the **repo root**, so they use the
 | API VIP | kube-vip, staged by Ansible | `roles/kube_vip/` |
 | CNI, LB IPs, L2 | Cilium, staged by Ansible | `roles/cilium/`, `network.yml` |
 | Gateway API / Ingress | k3s's Traefik, configured by Ansible | `roles/traefik/` |
-| Everything else | Argo CD | `argo-apps/` |
+| Teleport kube agent | Ansible (`teleport_kube_agent`) | `roles/teleport_kube_agent/`, `versions.yml` |
+| Everything else | infralab's Argo CD | `argo-apps/` |
 
 ## Rolling out
 
@@ -202,7 +205,7 @@ ansible-playbook playbooks/site.yml           # full build
 ```
 
 Or in stages: `playbooks/prep-nodes.yml`, then `playbooks/cluster.yml`.
-`pilab/argo-apps/` must be pushed to `master` on GitHub before Argo CD can sync it.
+`pilab/argo-apps/` must be pushed to `master` on GitHub before infralab's Argo CD can sync it. After a rebuild, update pilab's JWKS in `infralab/argo-apps/teleport-resources/tokens-kube-agents.yaml` so the kube agent (and with it Argo CD) can connect.
 
 ### What to expect
 
@@ -224,8 +227,8 @@ Or in stages: `playbooks/prep-nodes.yml`, then `playbooks/cluster.yml`.
 5. **Final check**: all nodes Ready (up to 15 min while Cilium images pull on
    the Pis).
 6. **In-cluster, on its own**: Cilium → Traefik (`10.0.0.20` returns 404 with
-   no routes) → Argo CD → the `root` app syncs `pilab/argo-apps/apps` → SUC applies
-   its Plans as a no-op on each node (each node is briefly cordoned).
+   no routes) → the Teleport kube agent joins → infralab's Argo CD sees `pilab`
+   and syncs `pilab/argo-apps/apps` → SUC applies its Plans as a no-op on each node (each node is briefly cordoned).
 
 Every playbook is idempotent; re-running after a timeout is safe.
 
@@ -233,11 +236,11 @@ Every playbook is idempotent; re-running after a timeout is safe.
 
 | Task | How |
 |---|---|
-| Re-stage one bootstrap component | `ansible-playbook playbooks/cluster.yml --tags kube_vip\|cilium\|traefik\|argocd` |
+| Re-stage one bootstrap component | `ansible-playbook playbooks/cluster.yml --tags kube_vip\|cilium\|traefik\|teleport_kube_agent` |
 | Upgrade k3s (incl. bundled Traefik) | Bump `version` in both SUC Plans **and** `k3s_version` in `versions.yml`, one minor at a time; push |
 | Upgrade Cilium | Bump `cilium_version` (one minor at a time), then `--tags cilium` |
 | Kernel / package updates | `ansible-playbook playbooks/ops/update-and-reboot.yml`: one node at a time, reboots only into a newer Debian `-arm64` kernel and waits for the node to be Ready (`--check` only lists pending updates). It's the only thing that upgrades packages. The hook syncs a new kernel to `/boot/firmware/debian/`. |
-| Add an app | Application YAML in `argo-apps/apps/` (with `path: pilab/argo-apps/<name>`), manifests in `argo-apps/<name>/` |
+| Add an app | Application YAML in `argo-apps/apps/` (`name: pilab-<app>`, `destination.name: pilab`, `path: pilab/argo-apps/<name>`), manifests in `argo-apps/<name>/` |
 | Wipe and rebuild | `ansible-playbook playbooks/ops/reset.yml -e confirm_reset=yes`, then `site.yml` |
 
 ### Notes

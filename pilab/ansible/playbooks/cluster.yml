@@ -3,7 +3,7 @@
 # On masters, the addon roles only stage manifests into the k3s auto-deploy
 # dir, so they run before k3s is installed and come up with it.
 #
-# Day-2 re-stage of one component: --tags kube_vip | cilium | teleport_kube_agent | argocd
+# Day-2 re-stage of one component: --tags kube_vip | cilium | traefik | teleport_kube_agent
 
 # serial: 1 so the first master initializes etcd before the others join,
 # and joins happen one at a time.
@@ -17,7 +17,6 @@
     - { role: cilium, tags: [cilium] }
     - { role: traefik, tags: [traefik] }
     - { role: teleport_kube_agent, tags: [teleport_kube_agent] }
-    - { role: argocd_bootstrap, tags: [argocd] }
     - { role: k3s, tags: [k3s] }
 
 - name: k3s agents
