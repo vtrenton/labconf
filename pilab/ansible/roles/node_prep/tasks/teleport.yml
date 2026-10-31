@@ -1,0 +1,56 @@
+# Teleport SSH agent under Managed Updates, joined with the TPM. Nothing secret
+# on the node: the token only allows this Pi's TPM Endorsement Key.
+- name: Write /etc/teleport.yaml
+  ansible.builtin.template:
+    src: teleport.yaml.j2
+    dest: /etc/teleport.yaml
+    owner: root
+    group: root
+    mode: '0644'
+  register: teleport_config
+
+- name: Check whether Teleport is installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/teleport
+  register: teleport_bin
+
+- name: Download teleport-update {{ node_prep_teleport_bootstrap_version }}
+  ansible.builtin.get_url:
+    url: "https://cdn.teleport.dev/teleport-update-v{{ node_prep_teleport_bootstrap_version }}-linux-arm64-bin.tar.gz"
+    dest: /tmp/teleport-update.tar.gz
+    checksum: "sha256:{{ node_prep_teleport_bootstrap_sha256 }}"
+    mode: '0600'
+  when: not teleport_bin.stat.exists
+
+- name: Unpack teleport-update
+  ansible.builtin.unarchive:
+    src: /tmp/teleport-update.tar.gz
+    dest: /tmp
+    remote_src: true
+  when: not teleport_bin.stat.exists
+
+- name: Enroll in Managed Updates and install Teleport
+  ansible.builtin.command: >-
+    /tmp/teleport/teleport-update enable
+    --proxy {{ node_prep_teleport_proxy }}
+    --group {{ node_prep_teleport_update_group }}
+  when: not teleport_bin.stat.exists
+
+- name: Remove the bootstrap download
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: [/tmp/teleport-update.tar.gz, /tmp/teleport]
+
+- name: Enable and start teleport
+  ansible.builtin.systemd_service:
+    name: teleport
+    enabled: true
+    state: started
+  register: teleport_started
+
+- name: Restart teleport on config change
+  ansible.builtin.systemd_service:
+    name: teleport
+    state: restarted
+  when: teleport_config is changed and teleport_started is not changed

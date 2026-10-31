@@ -1,0 +1,11 @@
+# teleport-operator chart values (standalone mode against the self-hosted
+# cluster). Bootstrap identity: teleport/bootstrap/ (bot labconf-operator,
+# token labconf-operator, re-rendered after every infralab rebuild).
+teleportAddress: teleport.aws.trentonvanderwert.com:443
+teleportClusterName: teleport.trentonvanderwert.com
+joinMethod: kubernetes
+token: labconf-operator
+
+# "dynamic" decides with Helm lookups, which Argo CD can't do. Install and
+# update the CRDs on every sync.
+installCRDs: "always"

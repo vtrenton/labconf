@@ -1,0 +1,42 @@
+# Managed Updates for the SSH agents on all ten nodes (teleport-update).
+# Kube agents are updated by bumping their chart in git, not by this.
+#
+# The cluster had a default autoupdate_config (tools only). The operator can't
+# adopt it; remove it once so the CR below takes over:
+#   tctl rm autoupdate_config/autoupdate-config
+apiVersion: resources.teleport.dev/v1
+kind: TeleportAutoupdateConfigV1
+metadata:
+  name: autoupdate-config
+spec:
+  tools:
+    mode: enabled
+  agents:
+    mode: enabled
+    strategy: halt-on-error
+    schedules:
+      regular:
+        # infralab first; pilab only after infralab's group succeeded, and at
+        # least a day later
+        - name: infralab
+          days: ["Mon", "Tue", "Wed", "Thu"]
+          start_hour: 16   # UTC
+        - name: pilab
+          days: ["Mon", "Tue", "Wed", "Thu"]
+          start_hour: 16
+          wait_hours: 24
+---
+# Self-hosted: the version agents and client tools converge on. Bump with the
+# Teleport cluster (and the operator/kube-agent chart versions).
+apiVersion: resources.teleport.dev/v1
+kind: TeleportAutoupdateVersionV1
+metadata:
+  name: autoupdate-version
+spec:
+  tools:
+    target_version: 18.11.3
+  agents:
+    start_version: 18.11.3
+    target_version: 18.11.3
+    schedule: regular
+    mode: enabled

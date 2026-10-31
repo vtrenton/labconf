@@ -18,6 +18,10 @@
   ansible.builtin.import_tasks: storage.yml
   tags: [storage]
 
+- name: Teleport SSH agent
+  ansible.builtin.import_tasks: teleport.yml
+  tags: [teleport]
+
 - name: Reboot if needed and verify
   ansible.builtin.import_tasks: reboot.yml
   tags: [cmdline, boot_kernel]

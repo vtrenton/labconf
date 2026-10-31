@@ -35,8 +35,11 @@ generation for bot due to missing label`. That error means the bot is
 already there: check with `tctl bots ls`, and change it with
 `tctl bots update`.
 
+Everything here is named `labconf-*`. The teleport-cluster deployment in AWS
+runs its own operator as bot/role `operator`; never reuse those names.
+
 Then Argo CD deploys the operator (`infralab/argo-apps/teleport-operator`),
-which joins as the `operator` bot from service account
+which joins as the `labconf-operator` bot from service account
 `teleport-iac:teleport-operator`.
 
 | Event | Do |
@@ -44,7 +47,28 @@ which joins as the `operator` bot from service account
 | **infralab rebuilt** (new service-account signing keys) | Re-render the token and overwrite it: `./teleport/bootstrap/render-operator-token.sh > /tmp/operator-token.yaml && tctl create -f /tmp/operator-token.yaml`. Until then the operator can't join, and Teleport resources it manages stay as they are. |
 | **Operator gains a resource kind we want** | Add it to `operator-role.yaml` and re-apply before adding the CRs. |
 | **Role edited** | `tctl create -f teleport/bootstrap/operator-role.yaml` (overwrite). |
-| **Bot edited** | `tctl bots update operator --set-roles operator` (forcing the bot resource can fail). |
+| **Bot edited** | `tctl bots update labconf-operator --set-roles labconf-operator` (forcing the bot resource can fail). |
+
+## What the operator manages (`infralab/argo-apps/teleport-resources/`)
+
+| File | Resources |
+|---|---|
+| `tokens-nodes.yaml` | `infralab-nodes`, `pilab-nodes`: TPM join, one rule per node EK |
+| `tokens-kube-agents.yaml` | `infralab-kube-agent`, `pilab-kube-agent`: Kubernetes JWKS join (refresh the JWKS after a cluster rebuild) |
+| `roles.yaml` | `lab-admin`: SSH (`sysadmin`/`admin`) + `system:masters` on `lab=infralab\|pilab` |
+| `autoupdate.yaml` | Managed Updates: groups `infralab` then `pilab` (24 h later), target version |
+
+Users stay out of git. Grant yourself the lab role once:
+
+```
+tctl users update trent --set-roles editor,access,lab-admin
+```
+
+Agents: infralab nodes install at first boot (`infralab/autoinstall`), Pis via
+`pilab/ansible` `prep-nodes.yml --tags teleport`, kube agents via each
+cluster's `teleport-kube-agent` Argo CD app. Teleport version bumps touch:
+`autoupdate.yaml`, the `teleport-operator` and both `teleport-kube-agent`
+chart versions.
 
 ## Risk
 

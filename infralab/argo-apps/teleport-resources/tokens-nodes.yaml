@@ -1,0 +1,55 @@
+# SSH node join tokens: TPM join, one allow rule per node's Endorsement Key
+# (`teleport tpm identify`). EK hashes are hardware identities, not secrets:
+# only the matching TPM can prove it holds the key. They survive OS
+# reinstalls. New node = add its rule. Agents: /etc/teleport.yaml
+# (infralab/autoinstall, pilab/ansible/roles/node_prep).
+---
+apiVersion: resources.teleport.dev/v2
+kind: TeleportProvisionToken
+metadata:
+  name: infralab-nodes
+spec:
+  roles: [Node]
+  join_method: tpm
+  tpm:
+    allow:
+      - description: infra1
+        ek_public_hash: "6eb1596128ebc13b10d8d8acb26887bc3bfa6c2120b0875e672d5972cf57977e"
+        ek_certificate_serial: "59:d4:e9:a2:70:88:70:a0:80:f0:f6:2f:33:de:6c:d7"
+      - description: infra2
+        ek_public_hash: "cfbc95bf2c9d33f931015ba18b61c8e2da194ff72f14c0128acdf325c2b9cf9b"
+        ek_certificate_serial: "50:dc:5d:e1:a6:dc:e4:3f:cb:23:fb:5c:cc:e0:00:1c"
+      - description: infra3
+        ek_public_hash: "0c5fbb2c28809f79155690ca73895a723926c8a84050688f3a3dc4e2f0a7ee0f"
+        ek_certificate_serial: "54:7d:12:fa:2e:c3:79:8f:45:6a:7d:35:f2:d5:f7:d2"
+---
+apiVersion: resources.teleport.dev/v2
+kind: TeleportProvisionToken
+metadata:
+  name: pilab-nodes
+spec:
+  roles: [Node]
+  join_method: tpm
+  tpm:
+    allow:
+      - description: kubemaster1
+        ek_public_hash: "9cc604d01004d711225e6f6495abd398c63177b69f2c9e6d5c071130b4118ab3"
+        ek_certificate_serial: "66:aa:ae:77"
+      - description: kubemaster2
+        ek_public_hash: "6c5b2a7712132a90204d48f5ac3c1287213ac3abe8f2a04016c952916af6c63e"
+        ek_certificate_serial: "4d:f7:f6:50"
+      - description: kubemaster3
+        ek_public_hash: "46d29f37e478a84694d644c15093bda5a94f74a5f0f825a8619bf521b8cd0a8a"
+        ek_certificate_serial: "6f:ab:7d:d6"
+      - description: kubeworker1
+        ek_public_hash: "0e15a19ffb49091112f9c02539fdf8913135919339567732f2a185ae7e646cff"
+        ek_certificate_serial: "79:ce:34:b1"
+      - description: kubeworker2
+        ek_public_hash: "b03779f393b2427bdcf85beb583d6d8a2eee5687f5e0e8edca8e5c5e8f1be82f"
+        ek_certificate_serial: "14:b9:b0:25"
+      - description: kubeworker3
+        ek_public_hash: "6f1a132ca5d4c772ddd456fa1045f3549a1ba68b827e3de91fd9cd322626627c"
+        ek_certificate_serial: "3a:f8:64:49"
+      - description: kubeworker4
+        ek_public_hash: "2688886b70cf5953ddc52d68c1911d483111138b7393118a0590b9d85c2b7945"
+        ek_certificate_serial: "44:d9:95:2f"

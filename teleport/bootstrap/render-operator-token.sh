@@ -18,11 +18,11 @@ cat <<YAML
 kind: token
 version: v2
 metadata:
-  name: operator-bot
+  name: labconf-operator
   description: Teleport Kubernetes Operator in infralab (static JWKS, re-render after rebuilds)
 spec:
   roles: [Bot]
-  bot_name: operator
+  bot_name: labconf-operator
   join_method: kubernetes
   kubernetes:
     type: static_jwks

@@ -34,3 +34,13 @@ node_prep_sysctls:
 # SSD for k3s state (etcd, images), mounted at k3s_data_dir
 node_prep_storage_device: /dev/sda
 node_prep_storage_fstype: ext4
+
+# Teleport SSH agent. Joins with the TPM (token pilab-nodes in
+# infralab/argo-apps/teleport-resources allows each Pi's EK). The version
+# below only bootstraps teleport-update; after that Managed Updates
+# (group pilab) follow the cluster's autoupdate_version.
+node_prep_teleport_proxy: teleport.aws.trentonvanderwert.com:443
+node_prep_teleport_token: pilab-nodes
+node_prep_teleport_update_group: pilab
+node_prep_teleport_bootstrap_version: 18.11.3
+node_prep_teleport_bootstrap_sha256: 4af2b4f563eccae32f7024f7a551e7e5a2d1362cb481af872bd284957bc8ea4f

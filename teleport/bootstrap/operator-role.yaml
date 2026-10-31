@@ -1,4 +1,6 @@
-# The Teleport Kubernetes Operator's role (impersonated by the "operator" bot).
+# The labconf Teleport Kubernetes Operator's role (impersonated by the
+# "labconf-operator" bot). Named labconf-* because the teleport-cluster
+# deployment in AWS runs its own operator as bot/role "operator".
 #
 # Scoped down from upstream's fixture-operator-role.yaml (branch/v18) to the
 # resource kinds this repo manages through the operator. Add a kind here, and
@@ -12,7 +14,7 @@
 kind: role
 version: v7
 metadata:
-  name: operator
+  name: labconf-operator
   description: Teleport Kubernetes Operator in infralab (labconf GitOps)
 spec:
   allow:

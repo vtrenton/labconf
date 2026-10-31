@@ -1,0 +1,34 @@
+# Kubernetes agent join tokens: Kubernetes JWKS join. Each pins its cluster's
+# service-account signing keys (public). Rebuilding a cluster changes them:
+#   KUBECONFIG=~/.kube/<lab>-k3s.yaml kubectl get --raw /openid/v1/jwks
+# and replace the jwks below in the same commit.
+---
+apiVersion: resources.teleport.dev/v2
+kind: TeleportProvisionToken
+metadata:
+  name: infralab-kube-agent
+spec:
+  roles: [Kube]
+  join_method: kubernetes
+  kubernetes:
+    type: static_jwks
+    static_jwks:
+      jwks: '{"keys":[{"use":"sig","kty":"RSA","kid":"h4q7B0myXc5FwDWeH4RnbMmSnXBu3qiugFjskf5HO2M","alg":"RS256","n":"uW2Qg1ZsYER9n1-DoLvAb_e-OAV4WPTRD2qha3KWoeeNZXCU5phzeJSPjrX8dZe5RG0k2oWdYnH2pzGf_1gr_SGoNwepkve8Al6wkLXSov_xyNBxODIbMLugcKYuvfaV3DNgif_VgJc6eKETOP3go0UVY0Zy6IRvzOA8R75Wm4UqOMttAagzwHpUR64yzcZGXgNlN2QVmkr8COyBsPienpJOIO8b8C2587JiCyIbj4ZG5Se93VAK1iTWKHJaC7_7DBNxhDUn-H-tpS9RAd6FenUGs3PZ_Tx6Abo1YfQ4oLLofx-b5xNVJSgTMWipLleTDK0l2DMWTV2pfk4LIRM97Q","e":"AQAB"}]}'
+    allow:
+      # namespace:serviceaccount of infralab/argo-apps teleport-kube-agent
+      - service_account: "teleport-agent:teleport-kube-agent"
+---
+apiVersion: resources.teleport.dev/v2
+kind: TeleportProvisionToken
+metadata:
+  name: pilab-kube-agent
+spec:
+  roles: [Kube]
+  join_method: kubernetes
+  kubernetes:
+    type: static_jwks
+    static_jwks:
+      jwks: '{"keys":[{"use":"sig","kty":"RSA","kid":"qYAiwSgUZ7IzowpUVFWAbkw0DSyH2iSYD73VHxdOtjs","alg":"RS256","n":"pUm_bJjaEzVSxBC-ovLGJ7iDUkwtyoee77QLIjMlVcVX_X3Zp4T3B-FD_S1Hzt-ro27CMHRI386n0JT5l6jAetTeUE2Fs6EnYSf-iJpb4FtFb_ZnwJz22xpUbLYjodP0jTwjfcdj18W4MFhAvoOhhcUHaJGzUG_9CS0aLS23zEtcmLF204TqAfAwAlATDGoMnHG_xgPnTw8DbFBzrQFW10LCP_taSkhVXXAz0gFS9LJoFMw2aam-4_CMXBa-68tj0k5cg5v9DBmWHQvZFF28622WkYOIi8ajzrI5K9Bn80U6HkGN2iO6KdC2M0WaZOP97JWluMIFordfTUUF7mJtiQ","e":"AQAB"}]}'
+    allow:
+      # namespace:serviceaccount of pilab/argo-apps teleport-kube-agent
+      - service_account: "teleport-agent:teleport-kube-agent"

@@ -1,0 +1,30 @@
+# Teleport resources as code, reconciled by the operator (../teleport-operator).
+# Deleting a CR here deletes the resource in Teleport.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: teleport-resources
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/vtrenton/labconf
+    targetRevision: HEAD
+    path: infralab/argo-apps/teleport-resources
+  destination:
+    server: https://kubernetes.default.svc
+    # The operator only watches its own namespace
+    namespace: teleport-iac
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      # The Teleport* CRDs come from the teleport-operator app
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m

@@ -1,0 +1,22 @@
+# Access to both labs. Assigned to users outside git (users are not
+# operator-managed; break-glass stays independent):
+#   tctl users update trent --set-roles editor,access,lab-admin
+apiVersion: resources.teleport.dev/v1
+kind: TeleportRoleV8
+metadata:
+  name: lab-admin
+spec:
+  allow:
+    # infralab nodes log in as sysadmin, the Pis as admin
+    logins: [sysadmin, admin]
+    node_labels:
+      lab: [infralab, pilab]
+    kubernetes_labels:
+      lab: [infralab, pilab]
+    kubernetes_groups: [system:masters]
+    kubernetes_resources:
+      - kind: "*"
+        api_group: "*"
+        namespace: "*"
+        name: "*"
+        verbs: ["*"]

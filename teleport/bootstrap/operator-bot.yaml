@@ -1,12 +1,14 @@
-# Machine ID bot the operator runs as. It joins with the operator-bot token
+# Machine ID bot the labconf operator runs as (not "operator": that bot belongs
+# to the teleport-cluster deployment's own operator). It joins with the
+# labconf-operator token
 # (render-operator-token.sh) and impersonates the operator role.
 #
 #   tctl create teleport/bootstrap/operator-bot.yaml   (no -f: --force fails for a new bot)
-# (equivalent: tctl bots add operator --roles operator --token operator-bot)
+# (equivalent: tctl bots add labconf-operator --roles labconf-operator)
 kind: bot
 version: v1
 metadata:
-  name: operator
+  name: labconf-operator
 spec:
   roles:
-    - operator
+    - labconf-operator

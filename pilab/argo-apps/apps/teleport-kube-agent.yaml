@@ -1,0 +1,32 @@
+# Teleport Kubernetes Service for pilab: registers this cluster in Teleport
+# (kube cluster "pilab", label lab=pilab). Joins with the pilab-kube-agent token
+# (Kubernetes JWKS, managed in infralab/argo-apps/teleport-resources).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: teleport-kube-agent
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://charts.releases.teleport.dev
+      chart: teleport-kube-agent
+      # Upgrades happen here (no in-cluster updater): keep in step with the
+      # Teleport cluster version and autoupdate-version.
+      targetRevision: 18.11.3
+      helm:
+        releaseName: teleport-kube-agent
+        valueFiles:
+          - $values/pilab/argo-apps/teleport-kube-agent/values.yaml
+    - repoURL: https://github.com/vtrenton/labconf
+      targetRevision: HEAD
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: teleport-agent
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

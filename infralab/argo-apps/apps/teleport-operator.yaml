@@ -1,0 +1,40 @@
+# Teleport Kubernetes Operator (standalone): reconciles the Teleport* CRs in
+# ../teleport-resources into the Teleport cluster. Joins as bot
+# labconf-operator (teleport/bootstrap/).
+#
+# Not given resources-finalizer: deleting this Application must never cascade
+# to the CRDs, because deleting the CRDs deletes every CR and with them the
+# Teleport roles and tokens they manage.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: teleport-operator
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://charts.releases.teleport.dev
+      chart: teleport-operator
+      # Must match the Teleport cluster's major version; bump with it.
+      targetRevision: 18.11.3
+      helm:
+        releaseName: teleport-operator
+        valueFiles:
+          - $values/infralab/argo-apps/teleport-operator/values.yaml
+    - repoURL: https://github.com/vtrenton/labconf
+      targetRevision: HEAD
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: teleport-iac
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    managedNamespaceMetadata:
+      labels:
+        pod-security.kubernetes.io/enforce: restricted
+    syncOptions:
+      - CreateNamespace=true
+      # The CRDs are too large for client-side apply's annotation
+      - ServerSideApply=true

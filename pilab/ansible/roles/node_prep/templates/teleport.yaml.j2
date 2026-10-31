@@ -1,0 +1,18 @@
+# Managed by Ansible (roles/node_prep). SSH only; joins with the TPM.
+version: v3
+teleport:
+  proxy_server: {{ node_prep_teleport_proxy }}
+  join_params:
+    method: tpm
+    token_name: {{ node_prep_teleport_token }}
+  log:
+    output: stderr
+    severity: INFO
+auth_service:
+  enabled: false
+proxy_service:
+  enabled: false
+ssh_service:
+  enabled: true
+  labels:
+    lab: pilab
