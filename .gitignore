@@ -1,0 +1,18 @@
+# Never commit credentials. The pre-commit hook (.githooks/) scans contents;
+# this keeps the usual credential files from being staged at all.
+*kubeconfig*
+*.kube/
+k3s.yaml
+*-k3s.yaml
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+.env
+.env.*
+*.tfstate*
+luks-recovery-key*
+identity
+tbot-data/

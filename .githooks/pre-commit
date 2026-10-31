@@ -1,0 +1,15 @@
+#!/bin/sh
+# Blocks commits that contain secrets. This repo is public, and nothing in it
+# should ever need a credential (see README: keyless via Teleport).
+# Enable once per clone:  git config core.hooksPath .githooks
+#
+# Fails closed: if gitleaks can't run, the commit is refused.
+set -eu
+if command -v gitleaks >/dev/null 2>&1; then
+  exec gitleaks git --pre-commit --staged --redact --no-banner
+elif command -v nix-shell >/dev/null 2>&1; then
+  exec nix-shell -p gitleaks --run 'gitleaks git --pre-commit --staged --redact --no-banner'
+else
+  echo "pre-commit: gitleaks not found; refusing to commit (install gitleaks)." >&2
+  exit 1
+fi
