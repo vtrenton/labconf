@@ -16,7 +16,9 @@ to `pilab/` unless they start with `pilab/`, which is how Argo CD sees them
 | Cilium | CNI + kube-proxy replacement, LB-IPAM pool `10.0.0.20-25`, L2 (ARP) announcements from workers only |
 | Traefik (bundled with k3s) | Gateway API + Ingress on `10.0.0.20` (`kube-system/traefik-gateway`) |
 | Argo CD (in infralab) | App-of-apps `pilab` syncs `pilab/argo-apps/apps`; reaches this cluster through Teleport (`tbot-argocd`) |
-| Teleport kube agent | Registers the cluster as `pilab` (`lab=pilab`); staged by Ansible because Argo CD connects through it |
+| Teleport kube agent (`kube,app`) | Registers the cluster as `pilab` (`lab=pilab`) and serves the Teleport app `hubble-pilab` (Hubble UI). Staged by Ansible because Argo CD connects through it |
+| Teleport SSH agents | On all 7 nodes (`node_prep`), joined with each Pi's TPM (token `pilab-nodes`); Managed Updates group `pilab` |
+| Prometheus agent | Scrapes the cluster and remote-writes to infralab over HTTPS; no storage, rules or Grafana here |
 | system-upgrade-controller | k3s upgrades via Plans in git |
 
 ## Why the nodes run Debian's kernel and a custom device tree overlay
@@ -115,6 +117,30 @@ for the UART's Bluetooth node plus blocking `hci_uart`/`btbcm`.
   don't work.
 - The TPM runs SPI without DMA (`no tx-dma configuration found`), which is
   fine at TPM data rates.
+- **kubemaster1's SLB9670 was a TPM 1.2 part**, converted to TPM 2.0 with
+  Infineon's firmware tool (same chip, `rev-id 16`; the others are native 2.0,
+  `rev-id 22`). After a 1.2 -> 2.0 conversion the chip needs a **power cycle**
+  (a warm `reboot` leaves it in `TPM_RC_REBOOT`). Its boot log always shows
+  `A TPM error (256) ... starting up the TPM manually`: harmless, the Pi
+  firmware doesn't send `TPM2_Startup`, so the kernel does.
+
+## Teleport
+
+- **SSH:** `node_prep` (`--tags teleport`) writes `/etc/teleport.yaml` (SSH
+  only, label `lab=pilab`, `join_params.method: tpm`, token `pilab-nodes`) and
+  installs Teleport with a checksum-pinned `teleport-update` (group `pilab`).
+  The token (in `infralab/argo-apps/teleport-resources/tokens-nodes.yaml`)
+  allows each node's TPM Endorsement Key hash; nothing secret is on the node,
+  and the EK survives a reflash, so a rebuilt node rejoins by itself. A new or
+  replaced TPM needs its `teleport tpm identify` output added there.
+- **Kubernetes and apps:** the kube agent (`roles/teleport_kube_agent`) joins
+  with the Kubernetes JWKS method (token `pilab-kube-agent`, roles
+  `Kube, App`). `hubble-pilab` is a static app because Teleport's app
+  discovery never looks in `kube-system`, where Cilium puts the Hubble UI.
+- **Access:** role `lab-admin` (managed in infralab) gives SSH as `admin`,
+  `system:masters`, and the apps. OpenSSH stays for Ansible.
+- Agent state lives in `/var/lib/teleport` on the SD card (small writes, plus
+  session recordings while a session is open).
 
 ## Other design decisions
 
@@ -153,7 +179,7 @@ pilab/
 │   │       │   ├── cluster.yml     # VIP, CIDRs, data dir, interface
 │   │       │   ├── network.yml     # LB-IPAM pool, Traefik IP
 │   │       │   ├── versions.yml    # every pinned version
-│   │       │   ├── teleport.yml    # Teleport proxy + cluster name (kube agent)
+│   │       │   ├── teleport.yml    # Teleport proxy + cluster name (kube agent; SSH agent vars are node_prep defaults)
 │   │       │   └── connection.yml  # SSH user/key
 │   │       ├── masters.yml     # k3s_role: server
 │   │       └── workers.yml     # k3s_role: agent
@@ -163,12 +189,12 @@ pilab/
 │   │   ├── cluster.yml         # masters: kube_vip, cilium, traefik, teleport_kube_agent, k3s; workers: k3s
 │   │   └── ops/                # reset, rolling-reboot, update-and-reboot
 │   └── roles/
-│       ├── node_prep/          # cmdline cgroups, Debian kernel, DT overlays (TPM, Wi-Fi off), sysctls, SSD mount
+│       ├── node_prep/          # cmdline cgroups, Debian kernel, DT overlays (TPM, Wi-Fi off), sysctls, SSD mount, Teleport SSH agent
 │       ├── k3s/                # config, install-once, first-server setup
 │       ├── kube_vip/           # API VIP manifests
 │       ├── cilium/             # HelmChart + LB pool / L2 policy
 │       ├── traefik/            # HelmChartConfig for bundled Traefik
-│       └── teleport_kube_agent/  # Teleport kube agent HelmChart
+│       └── teleport_kube_agent/  # Teleport kube agent HelmChart (kube + static app hubble-pilab)
 └── argo-apps/                  # everything after bootstrap (synced by infralab's Argo CD)
     ├── apps/                   # Application manifests (destination: pilab), synced by infralab app "pilab"
     ├── monitoring-agent/       # Prometheus agent values (remote-writes to infralab)
@@ -185,7 +211,8 @@ Argo CD Applications reference paths from the **repo root**, so they use the
 
 | Concern | Owner | Change it in |
 |---|---|---|
-| Node OS, kernel, boot config, TPM, Wi-Fi off | Ansible `node_prep` | `roles/node_prep/` |
+| Node OS, kernel, boot config, TPM, Wi-Fi off, Teleport SSH agent | Ansible `node_prep` | `roles/node_prep/` |
+| Teleport tokens, roles, Managed Updates | infralab's Teleport operator | `infralab/argo-apps/teleport-resources/` |
 | k3s install + config | Ansible `k3s` (first install only) | `group_vars`, `roles/k3s/` |
 | k3s version after install | SUC | `argo-apps/system-upgrade-controller/k3s-plans.yaml` |
 | API VIP | kube-vip, staged by Ansible | `roles/kube_vip/` |
@@ -212,8 +239,9 @@ Or in stages: `playbooks/prep-nodes.yml`, then `playbooks/cluster.yml`.
 1. **Node prep** (`prep-nodes.yml`, one node at a time, about 4-6 min each
    on first run, about 2 min when only `config.txt` changes): it fixes
    `cmdline.txt`, installs Debian's kernel, builds the device tree overlays,
-   disables Wi-Fi, writes `config.txt`, mounts the SSD on masters, then
-   **reboots once** if needed. A node must pass verification (Debian
+   disables Wi-Fi, writes `config.txt`, mounts the SSD on masters, installs
+   the Teleport SSH agent (it joins with the TPM), then **reboots once** if
+   needed. A node must pass verification (Debian
    `*-arm64` kernel, memory cgroup, BTF, no Wi-Fi) before the next one starts;
    any failure stops the rollout.
 2. **First master** (`cluster.yml`): manifests are staged, k3s is installed
@@ -239,6 +267,7 @@ Every playbook is idempotent; re-running after a timeout is safe.
 | Re-stage one bootstrap component | `ansible-playbook playbooks/cluster.yml --tags kube_vip\|cilium\|traefik\|teleport_kube_agent` |
 | Upgrade k3s (incl. bundled Traefik) | Bump `version` in both SUC Plans **and** `k3s_version` in `versions.yml`, one minor at a time; push |
 | Upgrade Cilium | Bump `cilium_version` (one minor at a time), then `--tags cilium` |
+| Upgrade Teleport | After the Teleport cluster: `teleport_kube_agent_chart_version` in `versions.yml` then `--tags teleport_kube_agent`; SSH agents follow infralab's `autoupdate.yaml` (group `pilab`, 24h after `infralab`, Mon-Thu 16:00 UTC; start early with `tctl autoupdate agents start-update pilab`). `node_prep_teleport_bootstrap_version` + SHA-256 only matter for fresh installs. |
 | Kernel / package updates | `ansible-playbook playbooks/ops/update-and-reboot.yml`: one node at a time, reboots only into a newer Debian `-arm64` kernel and waits for the node to be Ready (`--check` only lists pending updates). It's the only thing that upgrades packages. The hook syncs a new kernel to `/boot/firmware/debian/`. |
 | Add an app | Application YAML in `argo-apps/apps/` (`name: pilab-<app>`, `destination.name: pilab`, `path: pilab/argo-apps/<name>`), manifests in `argo-apps/<name>/` |
 | Wipe and rebuild | `ansible-playbook playbooks/ops/reset.yml -e confirm_reset=yes`, then `site.yml` |
@@ -248,6 +277,15 @@ Every playbook is idempotent; re-running after a timeout is safe.
 - Workers keep k3s data (images, `local-path` volumes, logs) on the SD card.
   Steady-state writes are small, but don't schedule write-heavy PVCs on
   workers until they have SSDs.
+- **Monitoring:** the Prometheus agent (`argo-apps/monitoring-agent/`) writes
+  to `https://prometheus.infra.lab.trentonvanderwert.com/api/v1/write`. Its
+  WAL is a RAM-only `emptyDir` (1Gi; no SD writes): it holds ~2h plus anything
+  unsent, and if it fills, scrapes fail until the pod restarts. k3s exposes the
+  embedded control-plane metrics on the kubelet endpoint too, so those are
+  dropped from the kubelet job (~200k -> ~73k series). Data, rules and Grafana
+  are in infralab.
+- **Traefik** comes with k3s (currently 3.7.13). The Traefik and containerd
+  CVE fixes arrive with the next GA k3s patch (`v1.36.6+k3s1`); upgrade via SUC.
 - `kubemaster1` has `cluster-init: true`. Rebuilding only kubemaster1 would
   start a new cluster; rebuild the whole cluster, or rejoin it as a normal
   server.
