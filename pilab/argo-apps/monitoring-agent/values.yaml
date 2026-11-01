@@ -71,7 +71,8 @@ prometheus:
             replacement: pilab
 
     remoteWrite:
-      - url: http://prometheus.infra.labnet.lan/api/v1/write
+      # HTTPS, Let's Encrypt wildcard (*.infra.lab), resolved by labns
+      - url: https://prometheus.infra.lab.trentonvanderwert.com/api/v1/write
 
     serviceMonitorSelectorNilUsesHelmValues: false
     podMonitorSelectorNilUsesHelmValues: false

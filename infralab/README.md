@@ -96,7 +96,7 @@ and a re-stage with `--tags <role>`.
 ## Monitoring (both labs)
 
 ```
-pilab  ── Prometheus agent (RAM-only WAL) ──remote write──▶ prometheus.infra.labnet.lan/api/v1/write
+pilab  ── Prometheus agent (RAM-only WAL) ──remote write──▶ https://prometheus.infra.lab.trentonvanderwert.com/api/v1/write
                                                               │ (Gateway .165, write path only)
 infralab ─ Prometheus (30d, local-path PVC) ◀─────────────────┘
               ▲
