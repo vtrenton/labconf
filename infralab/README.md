@@ -100,7 +100,7 @@ pilab  ── Prometheus agent (RAM-only WAL) ──remote write──▶ promet
                                                               │ (Gateway .165, write path only)
 infralab ─ Prometheus (30d, local-path PVC) ◀─────────────────┘
               ▲
-           Grafana (anonymous Viewer) ◀── grafana.infra.labnet.lan ◀── TV
+           Grafana (anonymous Viewer) ◀── grafana.infra.lab.trentonvanderwert.com (HTTPS) ◀── TV
 ```
 
 - `argo-apps/monitoring/`: kube-prometheus-stack (Prometheus, node-exporter,
@@ -114,8 +114,10 @@ infralab ─ Prometheus (30d, local-path PVC) ◀──────────�
 - Grafana has no admin user and no login form: anonymous Viewer only, no
   persistence. Dashboards are code: add a JSON file under
   `manifests/dashboards/` and list it in `manifests/kustomization.yaml`.
-- The TV: `chromium --kiosk http://grafana.infra.labnet.lan/?kiosk` opens the
-  home dashboard, `dashboards/lab-overview.json`.
+- The TV: `chromium --kiosk https://grafana.infra.lab.trentonvanderwert.com/?kiosk`
+  (see `kiosk/kiosk.service`) opens the home dashboard,
+  `dashboards/lab-overview.json`. Plain HTTP redirects to HTTPS. Through
+  Teleport it's `https://grafana.teleport.aws.trentonvanderwert.com` (JWT login).
 - Both endpoints are unauthenticated and LAN-only. Anything on the LAN can
   view Grafana and push samples to Prometheus.
 

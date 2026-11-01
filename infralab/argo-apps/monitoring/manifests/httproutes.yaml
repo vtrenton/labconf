@@ -29,34 +29,6 @@ spec:
           port: 80
           weight: 1
 ---
-# Old LAN name, HTTP only (no certificate for .lan). Nothing uses it since
-# the TV moved to HTTPS; delete this route when you're sure.
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: grafana-lan
-  namespace: monitoring
-spec:
-  parentRefs:
-    - group: gateway.networking.k8s.io
-      kind: Gateway
-      name: infra
-      namespace: gateway
-      sectionName: http
-  hostnames:
-    - grafana.infra.labnet.lan
-  rules:
-    - matches:
-        - path:
-            type: PathPrefix
-            value: /
-      backendRefs:
-        - group: ""
-          kind: Service
-          name: kube-prometheus-stack-grafana
-          port: 80
-          weight: 1
----
 # Remote-write endpoint for pilab's Prometheus agent. Only the write path is
 # routed; the Prometheus UI and query API stay in-cluster.
 apiVersion: gateway.networking.k8s.io/v1
