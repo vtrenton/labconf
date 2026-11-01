@@ -33,6 +33,8 @@ root (`<cluster>/argo-apps/...`).
  cert-manager ── Let's Encrypt wildcard *.infra.lab.trentonvanderwert.com (DNS-01, Route 53)
 ```
 
+When Teleport, SSO or GitOps isn't available: [BREAK-GLASS.md](BREAK-GLASS.md).
+
 ## Working in this repo
 
 - Enable the hook once per clone: `git config core.hooksPath .githooks`.
