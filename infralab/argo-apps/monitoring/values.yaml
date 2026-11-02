@@ -163,8 +163,22 @@ grafana:
       reporting_enabled: false
       check_for_updates: false
 
+  # Namespaced RBAC with our own ConfigMap-only Role
+  # (manifests/grafana-rbac.yaml) instead of the chart's cluster-wide
+  # ConfigMap+Secret read.
+  rbac:
+    namespaced: true
+    useExistingRole: grafana-sidecar
+
+  # Dashboards and the datasource are ConfigMaps in this namespace; don't
+  # watch Secrets or other namespaces (the chart defaults: both, ALL).
   sidecar:
+    datasources:
+      resource: configmap
+      searchNamespace: [monitoring]
     dashboards:
+      resource: configmap
+      searchNamespace: [monitoring]
       # Adds a cluster picker to the bundled dashboards
       multicluster:
         global:

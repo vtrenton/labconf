@@ -10,7 +10,7 @@ from the host's `/bind/`.
 |---|---|---|
 | `labnet.lan` | `zones/db.labnet.lan` | Machines only: gateway, `labns`, every node, cluster VIPs, the infralab Gateway/Ingress IPs. No app uses a `.lan` name. |
 | `0.0.10.in-addr.arpa` | `zones/10.0.0.rev` | PTR records. **infralab nodes take their hostname from these** (`hostname-from-dns`), so a node's PTR must exist before it boots. |
-| `lab.trentonvanderwert.com` | `zones/db.lab.trentonvanderwert.com` | **LAN-only** service names with real certificates: `*.infra` -> Gateway `.165`, `ingress.infra` -> `.166`. Public DNS for this name is a Route 53 zone with only cert-manager's `_acme-challenge` TXT records, so these names don't resolve off the LAN. |
+| `lab.trentonvanderwert.com` | `zones/db.lab.trentonvanderwert.com` | **LAN-only** service names with real certificates: `*.infra` -> Gateway `.165`, `ingress.infra` -> `.166`. Public DNS for this name is a Route 53 zone that is empty (NS/SOA only) except for a minute or two during certificate issuance, when cert-manager adds and then removes an `_acme-challenge` TXT record; these names don't resolve off the LAN. |
 
 Everything else is forwarded to Quad9 (`9.9.9.9`, `149.112.112.112`); the ISP
 interferes with `1.1.1.1`/`8.8.8.8`. Only clients in the `trusted` ACL

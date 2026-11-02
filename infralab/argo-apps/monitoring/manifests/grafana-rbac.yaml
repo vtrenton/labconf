@@ -1,0 +1,13 @@
+# Grafana's sidecars only need the dashboard/datasource ConfigMaps in this
+# namespace. The chart's own role always adds Secrets (cluster-wide by
+# default), so it's replaced by this one (values.yaml: grafana.rbac). Grafana
+# is exposed through Teleport and to the anonymous TV; it must not be able to
+# read any Secret.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: grafana-sidecar
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "watch", "list"]
