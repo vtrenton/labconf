@@ -4,7 +4,7 @@
 # in pilab/argo-apps/system-upgrade-controller; bump this in the same commit.
 k3s_version: "v1.36.5+k3s1"
 
-kube_vip_version: "v1.0.0"
+kube_vip_version: "v1.3.1"
 
 # Cilium upgrades: one minor at a time, then re-stage with --tags cilium.
 cilium_version: "1.20.4"
