@@ -1,5 +1,6 @@
 # update-and-reboot.yml - patch every node, one at a time, rebooting only when
-# the node isn't running the newest installed Debian kernel. This playbook is
+# the node isn't running the newest installed Debian kernel or a bootloader
+# (EEPROM) update was staged. This playbook is
 # the only thing that upgrades packages (the image ships no
 # unattended-upgrades; enforced below in case it ever gets installed).
 #
@@ -91,12 +92,36 @@
       changed_when: false
       check_mode: false
 
-    - name: Reboot into the new kernel
+    # The rpi-eeprom package only ships new bootloader images; Debian's
+    # rpi-eeprom-update.service just reports them. Stage it here (written to
+    # /boot/firmware) and the bootloader flashes itself on the next reboot.
+    - name: Check for a bootloader update
+      ansible.builtin.command: rpi-eeprom-update
+      register: eeprom
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: Stage the bootloader update
+      ansible.builtin.command: rpi-eeprom-update -a
+      register: eeprom_staged
+      when: "'BOOTLOADER: update available' in eeprom.stdout"
+
+    - name: Reboot into the new kernel / bootloader
       ansible.builtin.reboot:
         reboot_timeout: 1800
         post_reboot_delay: 10
       register: kernel_reboot
-      when: installed_kernel.stdout | trim != running_kernel.stdout | trim
+      when: >-
+        installed_kernel.stdout | trim != running_kernel.stdout | trim
+        or eeprom_staged is changed
+
+    - name: Confirm the bootloader update was applied
+      ansible.builtin.command: rpi-eeprom-update
+      register: eeprom_after
+      changed_when: false
+      failed_when: "'BOOTLOADER: up to date' not in eeprom_after.stdout"
+      when: eeprom_staged is changed
 
     - name: Wait for {{ k3s_service }} to be active again
       ansible.builtin.command: systemctl is-active {{ k3s_service }}
