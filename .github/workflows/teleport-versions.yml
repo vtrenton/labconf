@@ -1,0 +1,16 @@
+# Every Teleport version (charts, images, kube agents, node bootstrap) must
+# match autoupdate.yaml, and the bootstrap SHA-256s must match Teleport's CDN.
+# CI only, not a pre-commit hook: bump everything in one commit.
+name: teleport-versions
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Teleport versions
+        run: scripts/check-teleport-versions.sh --checksums

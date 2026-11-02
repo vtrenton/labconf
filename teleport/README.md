@@ -78,6 +78,9 @@ Users stay out of git. Grant the lab role with
   `infralab/argo-apps/cert-manager/values.yaml`; pilab's `teleport_kube_agent_chart_version`;
   and, for fresh installs, the bootstrap version + SHA-256 in
   `infralab/autoinstall/user-data` and pilab's `node_prep` defaults.
+  Bump them all in one commit; `scripts/check-teleport-versions.sh --checksums`
+  (also run in CI) fails if any differs from `autoupdate.yaml` or a SHA-256
+  doesn't match Teleport's CDN.
 
 ## Risk
 

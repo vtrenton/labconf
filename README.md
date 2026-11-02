@@ -14,7 +14,8 @@ keyless: TPM, Kubernetes service-account and SPIFFE joins through Teleport).
 | [`teleport/`](teleport/README.md) | The Teleport operator's own bootstrap identity (`tctl`). All other Teleport resources live in `infralab/argo-apps/teleport-resources/`. |
 | `binddns/` | BIND config and zones for the LAN resolver `labns` (`10.0.0.5`): `labnet.lan` (machines), `lab.trentonvanderwert.com` (LAN-only service names), reverse zone. |
 | `kiosk/` | systemd unit for the rack TV (cage + Chromium on the Grafana dashboard). |
-| `.githooks/`, `.github/` | Secret scanning: a fail-closed gitleaks pre-commit hook and a gitleaks CI workflow. |
+| `scripts/` | `check-teleport-versions.sh`: every Teleport version in the repo matches `autoupdate.yaml` (run in CI). |
+| `.githooks/`, `.github/` | Secret scanning (a fail-closed gitleaks pre-commit hook and a gitleaks CI workflow) and the Teleport version check in CI. |
 
 Each cluster directory follows the same split: `ansible/` (or
 `autoinstall/` + `ansible/`) bootstraps the nodes and k3s, and `argo-apps/`
