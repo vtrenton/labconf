@@ -22,8 +22,8 @@ on your workstation or in your password manager.
   Grafana's LAN URL (the TV) keeps working.
 - **Paused:** infralab's Argo CD can't reach pilab (syncs to pilab wait; infralab
   syncs continue).
-- **Certificates:** tbot can't refresh cert-manager's AWS credentials, so a
-  renewal would fail. The wildcard renews 30 days before expiry (currently due
+- **Certificates:** the tbot sidecar can't refresh cert-manager's AWS
+  credentials (and has none after a pod restart), so a renewal would fail. The wildcard renews 30 days before expiry (currently due
   2026-12-30, expires 2027-01-29), so there is about a month of slack.
 - **Operator:** Teleport resources stay as they are; changes in git apply once
   it's back.

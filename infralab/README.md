@@ -46,7 +46,7 @@ infralab/
 │   └── roles/              kube_vip, gateway_api_crds, cilium, argocd_bootstrap, k3s
 └── argo-apps/
     ├── apps/               one Application per app (root syncs this dir)
-    ├── cert-manager/ cert-manager-issuers/ tbot/        certificates (keyless DNS-01)
+    ├── cert-manager/ cert-manager-issuers/   certificates (keyless DNS-01; tbot sidecar)
     ├── gateway/            Gateway, wildcard Certificate, HTTP->HTTPS redirect
     ├── kube-vip-cloud-provider/   LoadBalancer IP pool
     ├── monitoring/         kube-prometheus-stack values; manifests/ (routes, dashboards)
@@ -147,16 +147,17 @@ Kubernetes-JWKS join token has to be refreshed:
     exact hostname would win over the wildcard redirect.
 - **DNS on `labns`:** zone `lab.trentonvanderwert.com` (`binddns/zones/`) is
   LAN-only: `*.infra` -> `.165`, `ingress.infra` -> `.166`. Public DNS for that
-  name is a Route 53 zone holding only cert-manager's `_acme-challenge` TXT
-  records. `labnet.lan` only names machines (nodes, VIP, Gateway/Ingress IPs);
+  name is a Route 53 zone that is empty except while a certificate is issued
+  (cert-manager's short-lived `_acme-challenge` TXT records). `labnet.lan` only names machines (nodes, VIP, Gateway/Ingress IPs);
   no app uses a `.lan` name.
 
 ## Certificates (keyless)
 
 ```
-tbot (cert-manager ns) --Kubernetes JWKS join--> Teleport (bot labconf-cert-manager)
+tbot (sidecar in the cert-manager pod) --Kubernetes JWKS join, SA cert-manager:cert-manager-->
+  Teleport (bot labconf-cert-manager)
   --X.509 SVID spiffe://teleport.trentonvanderwert.com/infralab/cert-manager-->
-  IAM Roles Anywhere (trust anchor = Teleport SPIFFE CA) --1h creds--> Secret route53-credentials
+  IAM Roles Anywhere (trust anchor = Teleport SPIFFE CA) --1h creds--> in-memory volume in the pod
   --> cert-manager (ambient AWS creds) --DNS-01 TXT--> Route 53 lab.trentonvanderwert.com
   --> Let's Encrypt wildcard *.infra.lab.trentonvanderwert.com
 ```
@@ -164,6 +165,11 @@ tbot (cert-manager ns) --Kubernetes JWKS join--> Teleport (bot labconf-cert-mana
 - The IAM role (`aws/cert-manager-dns01.yaml`, stack `labconf-cert-manager-dns01`)
   may only change TXT `_acme-challenge.*` in zone `Z06942441FWJASTX1LU8M`, and
   only for that SPIFFE ID. No AWS access key exists anywhere.
+- The credentials never leave the cert-manager pod: no Secret, nothing in etcd,
+  so Secret-reading RBAC can't expose them. tbot's own identity is in memory
+  too; after a restart it re-joins (no secret needed). If Teleport is down when
+  the pod restarts, cert-manager has no credentials until it's back (only
+  issuance needs them). tbot's image version is in `cert-manager/values.yaml`.
 - cert-manager checks propagation against public resolvers (`labns` shadows the
   zone on the LAN). If the ISP's handling of `1.1.1.1`/`8.8.8.8` ever breaks it,
   switch `dns01RecursiveNameservers` to `9.9.9.9:53,149.112.112.112:53`.
@@ -178,7 +184,7 @@ tbot (cert-manager ns) --Kubernetes JWKS join--> Teleport (bot labconf-cert-mana
 | SSH on infra1-3 (and the Pis) | TPM (`infralab-nodes` / `pilab-nodes`, one EK hash per node) |
 | Kube agent (`kube,app,discovery`) | Kubernetes JWKS (`infralab-kube-agent`, roles `Kube, App, Discovery`) |
 | Teleport operator (`teleport-iac`) | Kubernetes JWKS, bot `labconf-operator` (bootstrap) |
-| tbot for cert-manager / for Argo CD | Kubernetes JWKS, bots `labconf-cert-manager` / `labconf-argocd` |
+| tbot for cert-manager (sidecar) / for Argo CD | Kubernetes JWKS, bots `labconf-cert-manager` / `labconf-argocd` |
 
 - **Resources as code:** `argo-apps/teleport-resources/` (roles, tokens, bots,
   workload identity, SAML app, Managed Updates). The operator only manages what

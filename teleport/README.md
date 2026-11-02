@@ -73,8 +73,9 @@ Users stay out of git. Grant the lab role with
 - Kube agents: infralab's from Argo CD (`teleport-kube-agent` app), pilab's
   from its Ansible bootstrap (Argo CD connects through it).
 - A Teleport upgrade (cluster first; agents never newer) touches
-  `autoupdate.yaml`; the `teleport-operator`, `teleport-kube-agent`, `tbot`
-  and `tbot-argocd` chart versions; pilab's `teleport_kube_agent_chart_version`;
+  `autoupdate.yaml`; the `teleport-operator`, `teleport-kube-agent` and
+  `tbot-argocd` chart versions; the tbot sidecar image in
+  `infralab/argo-apps/cert-manager/values.yaml`; pilab's `teleport_kube_agent_chart_version`;
   and, for fresh installs, the bootstrap version + SHA-256 in
   `infralab/autoinstall/user-data` and pilab's `node_prep` defaults.
 
