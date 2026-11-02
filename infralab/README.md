@@ -138,6 +138,11 @@ Kubernetes-JWKS join token has to be refreshed:
 - **kube-vip** is the only L2 (ARP) speaker: the API VIP, plus LoadBalancer IPs
   that **kube-vip-cloud-provider** allocates from `10.0.0.165-10.0.0.166`.
   Cilium (kube-proxy replacement, Gateway API, Hubble) runs no L2 or LB-IPAM.
+  Give every LoadBalancer Service its own IP: since kube-vip v1.3, Services
+  can share a VIP only within the same lease.
+- **`.166` refuses connections until an Ingress exists.** It is announced
+  (it answers ping), but Cilium's shared Ingress only listens once there is an
+  Ingress object to serve.
 - **Gateway `gateway/infra`** on `.165`:
   - `https` listener for `*.infra.lab.trentonvanderwert.com` with the wildcard
     certificate `infra-wildcard-tls`;
@@ -263,8 +268,8 @@ infralab ─ Prometheus (30d, 40GB, local-path) ◀─┘          ▲ UI/API on
 | Component | How |
 |---|---|
 | k3s | Bump `version` in `argo-apps/system-upgrade-controller/k3s-plans.yaml` **and** `k3s_version` in `versions.yml` (also pilab's), GA only, one minor at a time |
-| Cilium, kube-vip, Gateway API CRDs, Argo CD chart | `versions.yml`, then `cluster.yml --tags <role>`. Gateway API CRDs must match what Cilium supports. |
-| Teleport | Cluster (EKS) first. Then `teleport-resources/autoupdate.yaml`, the chart versions of `teleport-operator`, `teleport-kube-agent`, `tbot`, `tbot-argocd`, pilab's `teleport_kube_agent_chart_version`, and (for fresh installs) the bootstrap version + SHA-256 in `user-data` and pilab's `node_prep`. Agents never newer than the cluster. |
+| Cilium, kube-vip, Gateway API CRDs, Argo CD chart | `versions.yml`, then `cluster.yml --tags <role>`. Gateway API CRDs must match what Cilium supports (Cilium 1.20: v1.6.x). kube-vip: also pilab's `versions.yml`; read the release notes for VIP-sharing or lease changes. |
+| Teleport | Cluster (EKS) first. Then `teleport-resources/autoupdate.yaml`, the chart versions of `teleport-operator`, `teleport-kube-agent`, `tbot-argocd`, the tbot sidecar image in `cert-manager/values.yaml`, pilab's `teleport_kube_agent_chart_version`, and (for fresh installs) the bootstrap version + SHA-256 in `user-data` and pilab's `node_prep`. Agents never newer than the cluster. CI (`scripts/check-teleport-versions.sh`) fails if any of these differ. |
 | SSH agents | Managed Updates: group `infralab`, then `pilab` 24h later, Mon-Thu 16:00 UTC. For an urgent fix: `tctl autoupdate agents start-update infralab`, then `pilab` (`lab-admin` may). |
 | cert-manager, kube-prometheus-stack | Chart `targetRevision` in their Applications (kube-prometheus-stack in both clusters) |
 

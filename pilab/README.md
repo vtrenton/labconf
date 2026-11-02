@@ -111,6 +111,13 @@ for the UART's Bluetooth node plus blocking `hci_uart`/`btbcm`.
   boot, do the same with the SD card in another machine. `reboot "0 tryboot"`
   does **not** work from Debian's kernel: the mainline firmware driver doesn't
   pass the tryboot flag.
+- **Bootloader (EEPROM) updates aren't automatic.** The `rpi-eeprom` package
+  only ships new bootloader images, and Debian's `rpi-eeprom-update.service`
+  only reports them. `update-and-reboot.yml` stages an available update
+  (`rpi-eeprom-update -a`, written to `/boot/firmware`), reboots (the
+  bootloader flashes itself, so that boot takes a little longer) and fails the
+  run if the node didn't come back on the new version. The bootloader config
+  (`BOOT_ORDER=0xf41`) is carried over. Check with `sudo rpi-eeprom-update`.
 - **SD card device name isn't stable**: it's `mmcblk0` or `mmcblk1` depending
   on boot. Everything uses PARTUUIDs; never hardcode `/dev/mmcblkN`.
 - **Pi-specific tools** that need downstream drivers (`vcgencmd`, `/dev/vcio`)
@@ -148,6 +155,8 @@ for the UART's Bluetooth node plus blocking `hci_uart`/`btbcm`.
   manifest in the k3s auto-deploy dir, so `10.0.0.10` comes up with the first
   server, before any CNI exists. Its lease timings are 15/10/2s: the original
   5/3/1s made kube-vip exit (dropping the VIP) when a busy Pi missed a renew.
+  It only holds the API VIP (`svc_enable=false`); LoadBalancer IPs are
+  Cilium's.
 - **Cilium reaches the apiserver at `127.0.0.1:6444`.** That's k3s's local
   apiserver (servers) or client load balancer (agents), so Cilium doesn't
   depend on the VIP.
@@ -268,7 +277,8 @@ Every playbook is idempotent; re-running after a timeout is safe.
 | Upgrade k3s (incl. bundled Traefik) | Bump `version` in both SUC Plans **and** `k3s_version` in `versions.yml`, one minor at a time; push |
 | Upgrade Cilium | Bump `cilium_version` (one minor at a time), then `--tags cilium` |
 | Upgrade Teleport | After the Teleport cluster: `teleport_kube_agent_chart_version` in `versions.yml` then `--tags teleport_kube_agent`; SSH agents follow infralab's `autoupdate.yaml` (group `pilab`, 24h after `infralab`, Mon-Thu 16:00 UTC; start early with `tctl autoupdate agents start-update pilab`). `node_prep_teleport_bootstrap_version` + SHA-256 only matter for fresh installs. |
-| Kernel / package updates | `ansible-playbook playbooks/ops/update-and-reboot.yml`: one node at a time, reboots only into a newer Debian `-arm64` kernel and waits for the node to be Ready (`--check` only lists pending updates). It's the only thing that upgrades packages. The hook syncs a new kernel to `/boot/firmware/debian/`. |
+| Kernel / package / bootloader updates | `ansible-playbook playbooks/ops/update-and-reboot.yml`: one node at a time; stages any bootloader (EEPROM) update, reboots only for a newer Debian `-arm64` kernel or a staged bootloader, and waits for the node to be Ready (`--check` only lists pending updates). It's the only thing that upgrades packages. The hook syncs a new kernel to `/boot/firmware/debian/`. |
+| Upgrade kube-vip | Bump `kube_vip_version` in `versions.yml` (and infralab's), read the release notes, then `--tags kube_vip`. The DaemonSet replaces one master at a time; the API VIP moves once, briefly. |
 | Add an app | Application YAML in `argo-apps/apps/` (`name: pilab-<app>`, `destination.name: pilab`, `path: pilab/argo-apps/<name>`), manifests in `argo-apps/<name>/` |
 | Wipe and rebuild | `ansible-playbook playbooks/ops/reset.yml -e confirm_reset=yes`, then `site.yml` |
 
