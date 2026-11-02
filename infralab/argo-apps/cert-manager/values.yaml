@@ -8,20 +8,122 @@ dns01RecursiveNameservers: "1.1.1.1:53,8.8.8.8:53"
 dns01RecursiveNameserversOnly: true
 
 # Route 53 credentials are "ambient": the AWS SDK reads the shared
-# credentials file that tbot keeps fresh (1h sessions, renewed every 20m).
-# The SDK re-reads it for each challenge.
+# credentials file that the tbot sidecar (below) keeps fresh (1h sessions,
+# renewed every 20m). The SDK re-reads it for each challenge.
 extraEnv:
   - name: AWS_SHARED_CREDENTIALS_FILE
     value: /var/run/route53/aws_credentials
   - name: AWS_REGION
     value: us-east-1
 volumes:
+  # Shared with the tbot sidecar; RAM only, gone with the pod
   - name: route53-credentials
-    secret:
-      secretName: route53-credentials
-      # Written by tbot; cert-manager may start first
-      optional: true
+    emptyDir:
+      medium: Memory
+      sizeLimit: 1Mi
+  - name: tbot-config
+    configMap:
+      name: tbot-config
+  # This pod's service account token, for tbot's Teleport join
+  - name: join-sa-token
+    projected:
+      sources:
+        - serviceAccountToken:
+            path: join-sa-token
 volumeMounts:
   - name: route53-credentials
     mountPath: /var/run/route53
     readOnly: true
+
+# --- tbot sidecar: Route 53 credentials that never leave this pod ---
+# tbot joins Teleport as bot labconf-cert-manager with this pod's own service
+# account token (cert-manager:cert-manager), gets the SVID
+# spiffe://teleport.trentonvanderwert.com/infralab/cert-manager, exchanges it
+# with IAM Roles Anywhere for 1h credentials and writes them to the shared
+# in-memory volume above. No Secret, nothing in etcd; tbot's own identity is
+# in memory too (it re-joins after a restart, no secret needed).
+# If the join fails (Teleport down), only tbot restarts; cert-manager keeps
+# running and needs credentials only while issuing (renewals: 30 days' slack).
+extraContainers:
+  - name: tbot
+    # Keep in step with the Teleport cluster version
+    image: public.ecr.aws/gravitational/tbot-distroless:18.11.8
+    args: [start, -c, /config/tbot.yaml, --log-format, json, --diag-addr, "0.0.0.0:3001"]
+    env:
+      - name: POD_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: KUBERNETES_TOKEN_PATH
+        value: /var/run/secrets/tokens/join-sa-token
+    volumeMounts:
+      - name: tbot-config
+        mountPath: /config
+        readOnly: true
+      - name: join-sa-token
+        mountPath: /var/run/secrets/tokens
+        readOnly: true
+      - name: route53-credentials
+        mountPath: /var/run/route53
+    ports:
+      - name: tbot-diag
+        containerPort: 3001
+    livenessProbe:
+      httpGet:
+        path: /livez
+        port: tbot-diag
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      failureThreshold: 6
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        memory: 256Mi
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: [ALL]
+      readOnlyRootFilesystem: true
+
+# Both containers as the same user: tbot writes the credentials file 0600
+securityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+
+extraObjects:
+  - |
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: tbot-config
+      namespace: cert-manager
+    data:
+      tbot.yaml: |
+        version: v2
+        proxy_server: teleport.aws.trentonvanderwert.com:443
+        onboarding:
+          join_method: kubernetes
+          token: labconf-cert-manager
+        storage:
+          type: memory
+        services:
+          - type: workload-identity-aws-roles-anywhere
+            name: route53
+            selector:
+              name: infralab-cert-manager
+            # infralab/aws/cert-manager-dns01.yaml (stack labconf-cert-manager-dns01)
+            role_arn: arn:aws:iam::321051512565:role/labconf-cert-manager
+            profile_arn: arn:aws:rolesanywhere:us-east-1:321051512565:profile/4dbbb1df-3dbd-4ceb-8794-ff38ebe1c59e
+            trust_anchor_arn: arn:aws:rolesanywhere:us-east-1:321051512565:trust-anchor/0625cecf-b6ea-4e6a-95bd-992d5771f4f4
+            region: us-east-1
+            # The profile and role cap sessions at 1h
+            session_duration: 1h
+            session_renewal_interval: 20m
+            overwrite_credential_file: true
+            destination:
+              type: directory
+              path: /var/run/route53   # file: aws_credentials
+              symlinks: try-secure
+              acls: off

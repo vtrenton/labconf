@@ -1,5 +1,5 @@
 # Keyless AWS access for infralab's cert-manager (Route 53 DNS-01):
-#   tbot (cert-manager namespace) joins as bot labconf-cert-manager
+#   tbot (sidecar in the cert-manager pod) joins as bot labconf-cert-manager
 #   -> X.509 SVID spiffe://teleport.trentonvanderwert.com/infralab/cert-manager
 #   -> IAM Roles Anywhere (infralab/aws/cert-manager-dns01.yaml)
 #   -> 1h credentials for role labconf-cert-manager.
@@ -36,7 +36,9 @@ spec:
     - labconf-cert-manager-identity
 ---
 # tbot's join: Kubernetes JWKS (infralab's signing keys; refresh after a
-# rebuild, like tokens-kube-agents.yaml), service account cert-manager:tbot.
+# rebuild, like tokens-kube-agents.yaml). cert-manager:cert-manager is the
+# tbot sidecar in cert-manager's own pod; cert-manager:tbot is the standalone
+# tbot it replaces (removed once the sidecar is verified).
 apiVersion: resources.teleport.dev/v2
 kind: TeleportProvisionToken
 metadata:
@@ -50,4 +52,5 @@ spec:
     static_jwks:
       jwks: '{"keys":[{"use":"sig","kty":"RSA","kid":"h4q7B0myXc5FwDWeH4RnbMmSnXBu3qiugFjskf5HO2M","alg":"RS256","n":"uW2Qg1ZsYER9n1-DoLvAb_e-OAV4WPTRD2qha3KWoeeNZXCU5phzeJSPjrX8dZe5RG0k2oWdYnH2pzGf_1gr_SGoNwepkve8Al6wkLXSov_xyNBxODIbMLugcKYuvfaV3DNgif_VgJc6eKETOP3go0UVY0Zy6IRvzOA8R75Wm4UqOMttAagzwHpUR64yzcZGXgNlN2QVmkr8COyBsPienpJOIO8b8C2587JiCyIbj4ZG5Se93VAK1iTWKHJaC7_7DBNxhDUn-H-tpS9RAd6FenUGs3PZ_Tx6Abo1YfQ4oLLofx-b5xNVJSgTMWipLleTDK0l2DMWTV2pfk4LIRM97Q","e":"AQAB"}]}'
     allow:
+      - service_account: "cert-manager:cert-manager"
       - service_account: "cert-manager:tbot"
