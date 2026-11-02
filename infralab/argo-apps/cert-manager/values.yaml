@@ -24,12 +24,16 @@ volumes:
   - name: tbot-config
     configMap:
       name: tbot-config
-  # This pod's service account token, for tbot's Teleport join
+  # This pod's service account token, for tbot's Teleport join. Teleport
+  # requires its cluster name as the audience (as the tbot chart sets it).
   - name: join-sa-token
     projected:
       sources:
         - serviceAccountToken:
             path: join-sa-token
+            audience: teleport.trentonvanderwert.com
+            # Kubernetes' minimum; Teleport's recommendation
+            expirationSeconds: 600
 volumeMounts:
   - name: route53-credentials
     mountPath: /var/run/route53
