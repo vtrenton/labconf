@@ -76,14 +76,21 @@ autoinstall:
         content: |
           #!/bin/sh
           # Set the hostname from the PTR record of the default-route address.
+          # Retries the address too: netplan skips wait-online when its generator
+          # runs before the NIC exists, so the DHCP lease can arrive after we start.
+          # Keep in sync with ansible/playbooks/ops/update-and-reboot.yml.
           set -eu
-          ip=$(ip -4 route get 1.1.1.1 | sed -n 's/.* src \([0-9.]*\).*/\1/p')
+          ip=
           name=
           for _ in $(seq 30); do
-            name=$(getent hosts "$ip" | awk '{print $2}')
-            [ -n "$name" ] && break
+            ip=$(ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p')
+            if [ -n "$ip" ]; then
+              name=$(getent hosts "$ip" | awk '{print $2}')
+              [ -n "$name" ] && break
+            fi
             sleep 2
           done
+          [ -n "$ip" ] || { echo "no IPv4 address on the default route" >&2; exit 1; }
           [ -n "$name" ] || { echo "no PTR record for $ip" >&2; exit 1; }
           short=${name%%.*}
           [ "$(hostname)" = "$short" ] || hostnamectl set-hostname "$short"

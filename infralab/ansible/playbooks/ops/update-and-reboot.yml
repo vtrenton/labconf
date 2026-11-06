@@ -32,6 +32,39 @@
         group: root
         mode: '0644'
 
+    # Same script as autoinstall/user-data. Lives here so a node always has the
+    # current copy before this playbook reboots it.
+    - name: Keep hostname-from-dns current
+      ansible.builtin.copy:
+        dest: /usr/local/sbin/hostname-from-dns
+        content: |
+          #!/bin/sh
+          # Set the hostname from the PTR record of the default-route address.
+          # Retries the address too: netplan skips wait-online when its generator
+          # runs before the NIC exists, so the DHCP lease can arrive after we start.
+          # Keep in sync with autoinstall/user-data.
+          set -eu
+          ip=
+          name=
+          for _ in $(seq 30); do
+            ip=$(ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p')
+            if [ -n "$ip" ]; then
+              name=$(getent hosts "$ip" | awk '{print $2}')
+              [ -n "$name" ] && break
+            fi
+            sleep 2
+          done
+          [ -n "$ip" ] || { echo "no IPv4 address on the default route" >&2; exit 1; }
+          [ -n "$name" ] || { echo "no PTR record for $ip" >&2; exit 1; }
+          short=${name%%.*}
+          [ "$(hostname)" = "$short" ] || hostnamectl set-hostname "$short"
+          if [ "$name" != "$short" ]; then entry="$name $short"; else entry=$short; fi
+          sed -i "s/^127\.0\.1\.1\s.*/127.0.1.1 $entry/" /etc/hosts
+          echo "hostname: $short ($ip)"
+        owner: root
+        group: root
+        mode: '0755'
+
     - name: Check whether k3s is installed
       ansible.builtin.stat:
         path: /usr/local/bin/k3s
