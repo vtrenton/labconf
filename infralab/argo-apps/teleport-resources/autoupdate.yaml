@@ -1,4 +1,4 @@
-# Managed Updates for the SSH agents on all ten nodes (teleport-update).
+# Managed Updates for the SSH agents on all eleven nodes (teleport-update).
 # Kube agents are updated by bumping their chart in git, not by this.
 #
 # The cluster had a default autoupdate_config (tools only). The operator can't
@@ -17,11 +17,16 @@ spec:
     schedules:
       regular:
         # infralab first; pilab only after infralab's group succeeded, and at
-        # least a day later
+        # least a day later; labns (the lab's DNS, which everything depends
+        # on) last, another day after pilab
         - name: infralab
           days: ["Mon", "Tue", "Wed", "Thu"]
           start_hour: 16   # UTC
         - name: pilab
+          days: ["Mon", "Tue", "Wed", "Thu"]
+          start_hour: 16
+          wait_hours: 24
+        - name: labns
           days: ["Mon", "Tue", "Wed", "Thu"]
           start_hour: 16
           wait_hours: 24

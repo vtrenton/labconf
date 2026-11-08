@@ -1,0 +1,21 @@
+# Teleport SSH agent on labns (installed by install.sh). SSH only; joins with
+# the TPM (token labns-node in infralab/argo-apps/teleport-resources allows
+# this Pi's EK). Login is root only (role labns-admin).
+version: v3
+teleport:
+  nodename: labns
+  proxy_server: teleport.aws.trentonvanderwert.com:443
+  join_params:
+    method: tpm
+    token_name: labns-node
+  log:
+    output: stderr
+    severity: INFO
+auth_service:
+  enabled: false
+proxy_service:
+  enabled: false
+ssh_service:
+  enabled: true
+  labels:
+    lab: labns

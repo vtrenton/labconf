@@ -31,3 +31,17 @@ spec:
       # The schedule and target version stay in autoupdate.yaml (GitOps).
       - resources: [autoupdate_agent_rollout]
         verbs: [read, update]
+---
+# SSH as root on labns (the LAN resolver; root is its only account). Separate
+# from lab-admin so root stays reachable on labns only: a role's logins apply
+# to the nodes that role matches. Assign alongside lab-admin:
+#   tctl users update trent --set-roles editor,access,lab-admin,labns-admin
+apiVersion: resources.teleport.dev/v1
+kind: TeleportRoleV8
+metadata:
+  name: labns-admin
+spec:
+  allow:
+    logins: [root]
+    node_labels:
+      lab: [labns]

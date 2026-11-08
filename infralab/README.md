@@ -186,7 +186,7 @@ tbot (sidecar in the cert-manager pod) --Kubernetes JWKS join, SA cert-manager:c
 
 | What | Joins / authenticates with |
 |---|---|
-| SSH on infra1-3 (and the Pis) | TPM (`infralab-nodes` / `pilab-nodes`, one EK hash per node) |
+| SSH on infra1-3 (and the Pis, `labns`) | TPM (`infralab-nodes` / `pilab-nodes` / `labns-node`, one EK hash per node) |
 | Kube agent (`kube,app,discovery`) | Kubernetes JWKS (`infralab-kube-agent`, roles `Kube, App, Discovery`) |
 | Teleport operator (`teleport-iac`) | Kubernetes JWKS, bot `labconf-operator` (bootstrap) |
 | tbot for cert-manager (sidecar) / for Argo CD | Kubernetes JWKS, bots `labconf-cert-manager` / `labconf-argocd` |
@@ -198,6 +198,7 @@ tbot (sidecar in the cert-manager pod) --Kubernetes JWKS join, SA cert-manager:c
 - **`lab-admin`** (role): SSH as `sysadmin` (infra) / `admin` (Pis),
   `system:masters` on both clusters, the lab apps, and driving agent update
   rollouts. Assign with `tctl users update <user> --set-roles ...,lab-admin`.
+- **`labns-admin`** (role): SSH as `root` on `labns` (the DNS Pi) only.
 - **A token's roles must cover every role in its agent's values.** After
   widening one, restart the agent so its instance identity picks up the new
   roles (otherwise app heartbeats are refused).
@@ -269,8 +270,8 @@ infralab ─ Prometheus (30d, 40GB, local-path) ◀─┘          ▲ UI/API on
 |---|---|
 | k3s | Bump `version` in `argo-apps/system-upgrade-controller/k3s-plans.yaml` **and** `k3s_version` in `versions.yml` (also pilab's), GA only, one minor at a time |
 | Cilium, kube-vip, Gateway API CRDs, Argo CD chart | `versions.yml`, then `cluster.yml --tags <role>`. Gateway API CRDs must match what Cilium supports (Cilium 1.20: v1.6.x). kube-vip: also pilab's `versions.yml`; read the release notes for VIP-sharing or lease changes. |
-| Teleport | Cluster (EKS) first. Then `teleport-resources/autoupdate.yaml`, the chart versions of `teleport-operator`, `teleport-kube-agent`, `tbot-argocd`, the tbot sidecar image in `cert-manager/values.yaml`, pilab's `teleport_kube_agent_chart_version`, and (for fresh installs) the bootstrap version + SHA-256 in `user-data` and pilab's `node_prep`. Agents never newer than the cluster. CI (`scripts/check-teleport-versions.sh`) fails if any of these differ. |
-| SSH agents | Managed Updates: group `infralab`, then `pilab` 24h later, Mon-Thu 16:00 UTC. For an urgent fix: `tctl autoupdate agents start-update infralab`, then `pilab` (`lab-admin` may). |
+| Teleport | Cluster (EKS) first. Then `teleport-resources/autoupdate.yaml`, the chart versions of `teleport-operator`, `teleport-kube-agent`, `tbot-argocd`, the tbot sidecar image in `cert-manager/values.yaml`, pilab's `teleport_kube_agent_chart_version`, and (for fresh installs) the bootstrap version + SHA-256 in `user-data`, pilab's `node_prep` and `binddns/teleport/install.sh`. Agents never newer than the cluster. CI (`scripts/check-teleport-versions.sh`) fails if any of these differ. |
+| SSH agents | Managed Updates: group `infralab`, then `pilab` 24h later, then `labns` (DNS) 24h after that, Mon-Thu 16:00 UTC. For an urgent fix: `tctl autoupdate agents start-update infralab`, then `pilab`, then `labns` (`lab-admin` may). |
 | cert-manager, kube-prometheus-stack | Chart `targetRevision` in their Applications (kube-prometheus-stack in both clusters) |
 
 ## Day 2

@@ -2,7 +2,7 @@
 # (`teleport tpm identify`). EK hashes are hardware identities, not secrets:
 # only the matching TPM can prove it holds the key. They survive OS
 # reinstalls. New node = add its rule. Agents: /etc/teleport.yaml
-# (infralab/autoinstall, pilab/ansible/roles/node_prep).
+# (infralab/autoinstall, pilab/ansible/roles/node_prep, binddns/teleport).
 ---
 apiVersion: resources.teleport.dev/v2
 kind: TeleportProvisionToken
@@ -53,3 +53,18 @@ spec:
       - description: kubeworker4
         ek_public_hash: "2688886b70cf5953ddc52d68c1911d483111138b7393118a0590b9d85c2b7945"
         ek_certificate_serial: "44:d9:95:2f"
+---
+# labns (the LAN resolver Pi, binddns/teleport). Its own token so its rule is
+# separate from the cluster Pis'; the agent labels itself lab: labns.
+apiVersion: resources.teleport.dev/v2
+kind: TeleportProvisionToken
+metadata:
+  name: labns-node
+spec:
+  roles: [Node]
+  join_method: tpm
+  tpm:
+    allow:
+      - description: labns
+        ek_public_hash: "cae21fc03998d345e83690d82e4b8e10a4f81fe4b49a6dd635540ee1f4d61e81"
+        ek_certificate_serial: "78:6a:33:0f"

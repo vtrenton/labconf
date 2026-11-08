@@ -17,6 +17,7 @@ autoupdate=infralab/argo-apps/teleport-resources/autoupdate.yaml
 userdata=infralab/autoinstall/user-data
 pilab_versions=pilab/ansible/inventory/group_vars/all/versions.yml
 pilab_bootstrap=pilab/ansible/roles/node_prep/defaults/main.yml
+labns_install=binddns/teleport/install.sh
 
 target=$(sed -n 's/^ *target_version: *\([0-9.]*\).*/\1/p' "$autoupdate" | head -n1)
 [ -n "$target" ] || { echo "no target_version in $autoupdate" >&2; exit 1; }
@@ -85,6 +86,11 @@ sha_infra=$(sed -n 's/^ *sha=\([0-9a-f]*\)$/\1/p' "$userdata")
 require "infralab bootstrap" "${#v_infra}"
 [ -z "$v_infra" ] || found "infralab bootstrap" "$userdata" "$v_infra"
 
+v_labns=$(sed -n 's/^version=\([0-9.]*\)$/\1/p' "$labns_install")
+sha_labns=$(sed -n 's/^sha256=\([0-9a-f]*\)$/\1/p' "$labns_install")
+require "labns bootstrap" "${#v_labns}"
+[ -z "$v_labns" ] || found "labns bootstrap" "$labns_install" "$v_labns"
+
 if $checksums; then
   echo "checksums (cdn.teleport.dev):"
   # verify <what> <version> <arch> <sha>
@@ -102,6 +108,7 @@ if $checksums; then
   }
   verify "infralab bootstrap" "$v_infra" amd64 "$sha_infra"
   verify "pilab bootstrap" "$v_pi" arm64 "$sha_pi"
+  verify "labns bootstrap" "$v_labns" arm64 "$sha_labns"
 fi
 
 if [ "$fail" -ne 0 ]; then
