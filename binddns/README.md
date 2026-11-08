@@ -66,12 +66,20 @@ the chip, so a reflash rejoins without touching the token.
 
 Then: `tsh ssh root@labns`.
 
-**The agent must not depend on this host's own BIND.** It resolves
-`teleport.aws.trentonvanderwert.com` to reach the proxy; if the host resolves
-only through the `bind9` container, Teleport drops out exactly when DNS is
-broken. Check `resolvectl status`: the host needs an upstream (Quad9) it can
-fall back to, not just `127.0.0.1`/`10.0.0.5`. OpenSSH as root with your key
-stays the break-glass path (`BREAK-GLASS.md`).
+**The agent doesn't depend on this host's BIND.** systemd-resolved is
+disabled so `bind9` can bind `:53`, and `/etc/resolv.conf` is hand-written:
+
+```
+nameserver 127.0.0.1
+nameserver 9.9.9.9
+```
+
+With BIND up, Quad9 is never used. With BIND down, queries to `127.0.0.1` are
+refused and glibc moves on to Quad9, so the agent still reaches
+`teleport.aws.trentonvanderwert.com` and `tsh ssh root@labns` works to fix
+BIND (the host itself just can't resolve `.lan` names meanwhile). Keep the
+second line if this file is ever rewritten. OpenSSH by IP stays the
+break-glass path (`BREAK-GLASS.md`).
 
 ## Conventions
 
