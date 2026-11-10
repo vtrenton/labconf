@@ -105,7 +105,8 @@ Blocked names answer `NXDOMAIN`. To switch a network on or off, edit its
 
    `named-checkconf` / `unbound-checkconf` fail off-host on missing
    directories (`/var/cache/bind`, `/etc/unbound`, the anchor); check a copy
-   with those paths pointed at a temp dir.
+   with those paths pointed at a temp dir, or on dns1 with the image:
+   `podman run --rm -v /bind/unbound:/etc/unbound --entrypoint unbound-checkconf docker.io/alpinelinux/unbound:latest-aarch64`.
 3. Commit, copy the changed file(s) to the host's `/bind/zones/`,
    `/bind/config/` or `/bind/unbound/`, and apply:
 
@@ -132,18 +133,18 @@ void until Phase 13. As root on dns1:
    scp -r binddns/config binddns/zones binddns/unbound binddns/bindcmd binddns/unboundcmd root@10.0.53.11:/bind/
    ```
 
-2. Seed the DNSSEC trust anchor (must exist, and be writable by the
-   container's `unbound` user for RFC 5011 updates):
+2. Create the blocklist cache directory, owned by the image's `unbound`
+   user (uid 100, gid 101):
 
    ```
-   mkdir -p /var/lib/unbound
-   podman run --rm -v /var/lib/unbound:/var/lib/unbound alpinelinux/unbound:latest-aarch64 \
-     sh -c 'unbound-anchor -a /var/lib/unbound/root.key; chown -R unbound /var/lib/unbound'
+   mkdir -p /var/lib/unbound && chown 100:101 /var/lib/unbound
    ```
 
-   (`unbound-anchor` exits 1 when it just wrote the file; that's fine. If the
-   image has no `unbound-anchor`, copy `/var/lib/unbound/root.key` from void
-   before void is retired.)
+   The image's entrypoint does the rest at every start: `unbound-anchor` on
+   `/etc/unbound/root.key` (DNSSEC trust anchor), the `unbound-control` keys,
+   and `chown -R unbound /etc/unbound` (so `/bind/unbound` on the host ends up
+   owned by uid 100; the generated `*.key`/`*.pem` stay on the host, never in
+   git).
 
 3. Replace the old recursive BIND and start Unbound:
 
@@ -153,7 +154,9 @@ void until Phase 13. As root on dns1:
    podman logs unbound      # no errors; "start of service"
    ```
 
-   Start them on boot the same way `bind9` was before.
+   Both run with `--restart=always`, so `podman-restart.service` (enabled)
+   starts them at boot. (The old `bind9` had no restart policy and wouldn't
+   have come back after a reboot.)
 
 4. Check on the host, then from cerberus (Wired):
 

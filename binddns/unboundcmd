@@ -1,4 +1,8 @@
-# Unbound (the resolver every network uses, :53). Host network so it sees
+# Unbound (the resolver every network uses, :53). --restart=always: started
+# at boot by podman-restart.service. Host network so it sees
 # real client addresses: access-control and the IoT view key on them.
-# The host's CA bundle is mounted for DNS-over-TLS to Quad9.
-podman run -d --name unbound --network host -v /bind/unbound/:/etc/unbound/ -v /var/lib/unbound:/var/lib/unbound -v /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro alpinelinux/unbound:latest-aarch64
+# The host's CA bundle is mounted for DNS-over-TLS to Quad9. /var/lib/unbound
+# holds the cached blocklist and must belong to the image's unbound user
+# (uid 100, gid 101). The entrypoint seeds /etc/unbound/root.key and the
+# unbound-control keys itself.
+podman run -d --name unbound --restart=always --network host -v /bind/unbound/:/etc/unbound/ -v /var/lib/unbound:/var/lib/unbound -v /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro docker.io/alpinelinux/unbound:latest-aarch64
