@@ -1,1 +1,3 @@
-podman run -d --name bind9 -e TZ=CST -p 53:53/tcp -p 53:53/udp -v /bind/config/named.conf:/etc/bind/named.conf -v /bind/cache/:/var/cache/bind -v /bind/zones/:/etc/bind/zones ubuntu/bind9:latest
+# BIND (authoritative only, 127.0.0.1:5300) for Unbound. Host network: it
+# listens on localhost only (named.conf), and Unbound reaches it there.
+podman run -d --name bind9 --network host -e TZ=CST -v /bind/config/named.conf:/etc/bind/named.conf -v /bind/cache/:/var/cache/bind -v /bind/zones/:/etc/bind/zones ubuntu/bind9:latest

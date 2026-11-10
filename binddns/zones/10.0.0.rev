@@ -1,6 +1,6 @@
 $TTL 86400      ; Default TTL
 @       IN      SOA     labns.labnet.lan. admin.labnet.lan. (
-                        2026103002  ; Serial
+                        2026110901  ; Serial
                         3600        ; Refresh
                         1800        ; Retry
                         604800      ; Expire
@@ -11,7 +11,6 @@ $TTL 86400      ; Default TTL
 
                 ; PTR Records
 1       IN      PTR     gateway.labnet.lan.
-5       IN      PTR     labns.labnet.lan.
 11      IN      PTR     kubemaster1.labnet.lan.
 12      IN      PTR     kubemaster2.labnet.lan.
 13      IN      PTR     kubemaster3.labnet.lan.

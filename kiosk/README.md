@@ -37,7 +37,7 @@ The unit file is the only part in git. It expects:
 - a `kiosk` user, and a PAM service `kiosk` (`/etc/pam.d/kiosk`) for the
   logind session (`PAMName=kiosk`);
 - `/etc/default/kiosk` (`EnvironmentFile`; present on the Pi, not in git);
-- DNS through `labns` (`10.0.0.5`), or the URL won't resolve;
+- DNS through `labns` / dns1 (`10.0.53.11`), or the URL won't resolve;
 - `graphical.target` as the default target, with the unit enabled:
 
 ```

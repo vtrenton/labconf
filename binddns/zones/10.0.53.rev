@@ -1,0 +1,15 @@
+$TTL 86400      ; Default TTL
+; DNS network (VLAN 853, 10.0.53.0/24). dns1 = the former labns Pi.
+@       IN      SOA     labns.labnet.lan. admin.labnet.lan. (
+                        2026110901  ; Serial
+                        3600        ; Refresh
+                        1800        ; Retry
+                        604800      ; Expire
+                        86400 )     ; Minimum TTL
+
+@       IN      NS      labns.labnet.lan.
+
+11      IN      PTR     labns.labnet.lan.
+                ; 12: a future dns2
+
+; end of zone file

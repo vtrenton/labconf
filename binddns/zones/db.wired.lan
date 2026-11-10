@@ -1,0 +1,16 @@
+$TTL 86400      ; Default TTL
+; Wired LAN (home, 192.168.0.0/24). Taken over from void's Pi-hole local
+; records (dns.hosts), which held only gateway, raspmeleon and void; the
+; latter two are void itself, retired in udm-pro-config Phase 13.
+@       IN      SOA     labns.labnet.lan. admin.labnet.lan. (
+                        2026110901  ; Serial
+                        3600        ; Refresh
+                        1800        ; Retry
+                        604800      ; Expire
+                        86400 )     ; Minimum TTL
+
+@       IN      NS      labns.labnet.lan.
+
+gateway         IN      A       192.168.0.1
+
+; end of zone file

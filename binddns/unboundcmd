@@ -1,0 +1,4 @@
+# Unbound (the resolver every network uses, :53). Host network so it sees
+# real client addresses: access-control and the IoT view key on them.
+# The host's CA bundle is mounted for DNS-over-TLS to Quad9.
+podman run -d --name unbound --network host -v /bind/unbound/:/etc/unbound/ -v /var/lib/unbound:/var/lib/unbound -v /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro alpinelinux/unbound:latest-aarch64

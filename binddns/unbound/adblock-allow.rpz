@@ -1,0 +1,16 @@
+; Ad-blocking exceptions (RPZ, checked before the HaGeZi list; see
+; unbound.conf). Applies to home, wireless and guest only.
+;
+; One entry per name that the list blocks but you want: `rpz-passthru.`
+; answers it normally. Add the wildcard line too if subdomains are needed.
+; Say why, like the IoT allowlist:
+;
+;   ; tracking link in the bank's emails, 2026-11
+;   click.example.com      CNAME rpz-passthru.
+;   *.click.example.com    CNAME rpz-passthru.
+;
+; Which rule blocked a name: podman logs unbound 2>&1 | grep 'rpz: adblock'
+; Apply: copy to /bind/unbound/ on dns1, then `podman restart unbound`.
+$TTL 3600
+@ SOA localhost. root.localhost. 1 3600 600 86400 3600
+  NS  localhost.

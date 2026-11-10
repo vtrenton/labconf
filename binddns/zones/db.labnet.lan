@@ -1,6 +1,6 @@
 $TTL 86400      ; Default TTL
 @       IN      SOA     labns.labnet.lan. admin.labnet.lan. (
-                        2026103102  ; Serial
+                        2026110901  ; Serial
                         3600        ; Refresh
                         1800        ; Retry
                         604800      ; Expire
@@ -11,7 +11,8 @@ $TTL 86400      ; Default TTL
 
                 ; A records for labnet.lan
 gateway         IN      A       10.0.0.1
-labns           IN      A       10.0.0.5
+labns           IN      A       10.0.53.11      ; on the DNS network (VLAN 853) since udm-pro-config Phase 12b
+dns1            IN      A       10.0.53.11      ; same host; its name in the network plan
 kubemaster1     IN      A       10.0.0.11
 kubemaster2     IN      A       10.0.0.12
 kubemaster3     IN      A       10.0.0.13

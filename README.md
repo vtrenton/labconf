@@ -12,7 +12,7 @@ keyless: TPM, Kubernetes service-account and SPIFFE joins through Teleport).
 | [`infralab/`](infralab/README.md) | 3 Intel mini PCs (Ubuntu, unattended install + TPM disk unlock). The **gateway**: the only Argo CD (deploys to every cluster), the Teleport operator, cert-manager, central Prometheus/Grafana. |
 | [`pilab/`](pilab/README.md) | 7 Raspberry Pi 4s (Debian kernel, k3s, Cilium). Bootstrapped by Ansible; everything else deployed from infralab's Argo CD through Teleport. |
 | [`teleport/`](teleport/README.md) | The Teleport operator's own bootstrap identity (`tctl`). All other Teleport resources live in `infralab/argo-apps/teleport-resources/`. |
-| `binddns/` | BIND config and zones for the LAN resolver `labns` (`10.0.0.5`): `labnet.lan` (machines), `lab.trentonvanderwert.com` (LAN-only service names), reverse zone. Plus its Teleport SSH agent (`binddns/teleport/`). |
+| `binddns/` | DNS for every network, on `labns` / dns1 (`10.0.53.11`): Unbound (resolver, IoT allowlist view, DoT to Quad9) in front of BIND (authoritative: `labnet.lan` machines, `wired.lan`, `lab.trentonvanderwert.com` LAN-only service names, reverse zones). Plus its Teleport SSH agent (`binddns/teleport/`). |
 | `kiosk/` | systemd unit for the rack TV (cage + Chromium on the Grafana dashboard). |
 | `scripts/` | `check-teleport-versions.sh`: every Teleport version in the repo matches `autoupdate.yaml` (run in CI). |
 | `.githooks/`, `.github/` | Secret scanning (a fail-closed gitleaks pre-commit hook and a gitleaks CI workflow) and the Teleport version check in CI. |
