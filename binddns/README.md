@@ -1,10 +1,9 @@
 # binddns
 
 DNS for every network in the house, on **dns1** (`10.0.53.11`, the DNS
-network, VLAN 853): the Pi that was `labns` on labnet (`10.0.0.5`). It keeps
-the name `labns` in DNS and Teleport until the `dc` rename. The network side
-(VLANs, DHCP, firewall) is in the `udm-pro-config` repo; this directory is
-the host.
+network, VLAN 853, USW port 48), a Raspberry Pi 4 named `labns` in DNS and
+Teleport (until the `dc` rename). The network side (VLANs, DHCP, firewall,
+its reservation) is in the `udm-pro-config` repo; this directory is the host.
 
 Two containers, both `--network host`, config mounted from the host's
 `/bind/`:
@@ -28,7 +27,7 @@ wouldn't work.
 | Zone | File | Holds |
 |---|---|---|
 | `labnet.lan` | `zones/db.labnet.lan` | Machines on labnet (VLAN 800): gateway, `labns`/`dns1`, every node, cluster VIPs, the infralab Gateway/Ingress IPs. No app uses a `.lan` name. |
-| `wired.lan` | `zones/db.wired.lan` | The wired LAN (home): `gateway`. Taken over from void's Pi-hole (its only other records were void itself). |
+| `wired.lan` | `zones/db.wired.lan` | The wired LAN (home): `gateway`, plus any home machine that needs a name. |
 | `0.0.10.in-addr.arpa` | `zones/10.0.0.rev` | labnet PTRs. **infralab nodes take their hostname from these** (`hostname-from-dns`), so a node's PTR must exist before it boots. |
 | `53.0.10.in-addr.arpa` | `zones/10.0.53.rev` | DNS network PTRs (dns1). |
 | `lab.trentonvanderwert.com` | `zones/db.lab.trentonvanderwert.com` | **LAN-only** service names with real certificates: `*.infra` -> Gateway `.165`, `ingress.infra` -> `.166`. Public DNS for this name is a Route 53 zone that is empty (NS/SOA only) except for a minute or two during certificate issuance, when cert-manager adds and then removes an `_acme-challenge` TXT record; these names don't resolve off the LAN. |
@@ -68,7 +67,7 @@ the firewall side, is the IoT runbook in `udm-pro-config` (IMPLEMENTATION.md).
 
 For **home, wireless and guest** only (`access-control-tag … "adblock"`); labnet,
 camera, dns, management and IoT are unfiltered (IoT has its allowlist
-instead). This replaces void's Pi-hole.
+instead).
 
 - **List:** HaGeZi Multi NORMAL in RPZ format (ads, trackers, telemetry,
   phishing, malware; ~400k entries; "mostly won't cause restrictions").
@@ -87,6 +86,10 @@ instead). This replaces void's Pi-hole.
 
 Blocked names answer `NXDOMAIN`. To switch a network on or off, edit its
 `access-control-tag` line.
+
+**Firefox DoH canary:** `use-application-dns.net` answers `NXDOMAIN` for
+every client (`local-zone … always_nxdomain`), which tells Firefox not to
+switch to DNS-over-HTTPS by itself and bypass this resolver.
 
 ## Changing a zone or the allowlist
 
@@ -121,44 +124,52 @@ Blocked names answer `NXDOMAIN`. To switch a network on or off, edit its
    dig +short SOA labnet.lan @10.0.53.11
    ```
 
-## Rollout on dns1 (one time, udm-pro-config Phase 12c)
+## Install on a fresh Pi
 
-The Pi is already on the DNS network (`10.0.53.11`, USW port 45) and nothing
-uses it while this runs: labnet resolves through the UDM and home through
-void until Phase 13. As root on dns1:
+The Pi gets `10.0.53.11` from its DHCP reservation (udm-pro-config) on USW
+port 48. Until this is done no network has DNS except the bypasses home and
+wireless keep (UDM resolver, public DNS).
 
-1. Copy the config:
+1. **OS:** Ubuntu Server (arm64), DHCP on `eth0`, root login by SSH key only
+   (root is the only account). Then, as root:
+
+   ```
+   apt install podman
+   systemctl enable podman-restart.service           # starts --restart=always containers at boot
+   systemctl disable --now systemd-resolved          # frees :53 for Unbound
+   rm /etc/resolv.conf
+   printf 'nameserver 127.0.0.1\nnameserver 9.9.9.9\n' > /etc/resolv.conf
+   mkdir -p /bind/cache /var/lib/unbound && chown 100:101 /var/lib/unbound
+   ```
+
+   `/var/lib/unbound` holds the cached blocklist and belongs to the image's
+   `unbound` user (uid 100, gid 101). The `resolv.conf` keeps the host (and
+   its Teleport agent) resolving when Unbound is down; see Teleport below.
+
+2. **Config** (from a checkout of this repo):
 
    ```
    scp -r binddns/config binddns/zones binddns/unbound binddns/bindcmd binddns/unboundcmd root@10.0.53.11:/bind/
    ```
 
-2. Create the blocklist cache directory, owned by the image's `unbound`
-   user (uid 100, gid 101):
+3. **Start** (both `--restart=always`):
 
    ```
-   mkdir -p /var/lib/unbound && chown 100:101 /var/lib/unbound
-   ```
-
-   The image's entrypoint does the rest at every start: `unbound-anchor` on
-   `/etc/unbound/root.key` (DNSSEC trust anchor), the `unbound-control` keys,
-   and `chown -R unbound /etc/unbound` (so `/bind/unbound` on the host ends up
-   owned by uid 100; the generated `*.key`/`*.pem` stay on the host, never in
-   git).
-
-3. Replace the old recursive BIND and start Unbound:
-
-   ```
-   podman rm -f bind9 && sh /bind/bindcmd
+   sh /bind/bindcmd
    sh /bind/unboundcmd
    podman logs unbound      # no errors; "start of service"
    ```
 
-   Both run with `--restart=always`, so `podman-restart.service` (enabled)
-   starts them at boot. (The old `bind9` had no restart policy and wouldn't
-   have come back after a reboot.)
+   The Unbound image's entrypoint does the rest at every start:
+   `unbound-anchor` on `/etc/unbound/root.key` (DNSSEC trust anchor), the
+   `unbound-control` keys, and `chown -R unbound /etc/unbound` (so
+   `/bind/unbound` ends up owned by uid 100; the generated `*.key`/`*.pem`
+   stay on the host, never in git). After changing `bindcmd`/`unboundcmd`,
+   recreate: `podman rm -f bind9 unbound`, then step 3.
 
-4. Check on the host, then from cerberus (Wired):
+4. **Teleport agent:** see Teleport (SSH) below.
+
+5. **Check** on the host, then from a home machine:
 
    ```
    dig +short SOA labnet.lan @127.0.0.1 -p 5300   # BIND directly
@@ -172,11 +183,7 @@ void until Phase 13. As root on dns1:
                                                  # resolves from labnet (not filtered)
    ```
 
-The same config was run locally (alternate ports) before the rollout: stub
-zones, PTRs, the wildcard, DoT, DNSSEC, the IoT view (allowlisted name
-answered, others `REFUSED` and logged) and ad blocking (listed names
-`NXDOMAIN` for tagged clients only, exceptions passed through) behaved as
-above.
+   Reboot once and check again: both containers must come back on their own.
 
 ## Teleport (SSH)
 

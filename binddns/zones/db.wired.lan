@@ -1,7 +1,6 @@
 $TTL 86400      ; Default TTL
-; Wired LAN (home, 192.168.0.0/24). Taken over from void's Pi-hole local
-; records (dns.hosts), which held only gateway, raspmeleon and void; the
-; latter two are void itself, retired in udm-pro-config Phase 13.
+; Wired LAN (home, 192.168.0.0/24). Machines that need a name get an A
+; record here (and a DHCP reservation in udm-pro-config).
 @       IN      SOA     labns.labnet.lan. admin.labnet.lan. (
                         2026110901  ; Serial
                         3600        ; Refresh
