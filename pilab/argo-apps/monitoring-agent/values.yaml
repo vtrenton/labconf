@@ -30,6 +30,13 @@ kubeApiServer:
         regex: (apiserver_request_duration_seconds|etcd_request_duration_seconds|apiserver_request_body_size_bytes|apiserver_response_sizes|apiserver_watch_list_duration_seconds|apiserver_watch_cache_read_wait_seconds|apiserver_watch_events_sizes)_bucket
 kubelet:
   serviceMonitor:
+    # cAdvisor stamps its own sample times, and on the Pis it refreshes many
+    # series less often than every 10s (the chart default) or 15s. A server
+    # TSDB silently ignores the repeated (same timestamp, same value) samples;
+    # an agent counts them as out-of-order (~100/s, PrometheusOutOfOrderTimestamps).
+    # At 30s every series has a newer timestamp. Nothing was lost before: the
+    # dropped samples were exact repeats.
+    cAdvisorInterval: 30s
     metricRelabelings:
       # chart default
       - action: drop
