@@ -1,0 +1,37 @@
+# tbot for the Alertmanager sidecar (monitoring/values.yaml): joins Teleport
+# as bot labconf-alertmanager (teleport-resources/alertmanager-identity.yaml)
+# and keeps 1h AWS credentials for role labconf-alertmanager
+# (infralab/aws/alerting.yaml) in a RAM-only volume shared with Alertmanager.
+# Alertmanager re-reads the file for every SNS notification.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tbot-alertmanager
+data:
+  tbot.yaml: |
+    version: v2
+    proxy_server: teleport.aws.trentonvanderwert.com:443
+    onboarding:
+      join_method: kubernetes
+      token: labconf-alertmanager
+    storage:
+      type: memory
+    services:
+      - type: workload-identity-aws-roles-anywhere
+        name: sns
+        selector:
+          name: infralab-alertmanager
+        # infralab/aws/alerting.yaml (stack labconf-alerting)
+        role_arn: arn:aws:iam::321051512565:role/labconf-alertmanager
+        profile_arn: arn:aws:rolesanywhere:us-east-1:321051512565:profile/dd413af7-8c0d-45a6-9ccd-85d220e8d62d
+        trust_anchor_arn: arn:aws:rolesanywhere:us-east-1:321051512565:trust-anchor/0625cecf-b6ea-4e6a-95bd-992d5771f4f4
+        region: us-east-1
+        # The profile and role cap sessions at 1h
+        session_duration: 1h
+        session_renewal_interval: 20m
+        overwrite_credential_file: true
+        destination:
+          type: directory
+          path: /var/run/aws   # file: aws_credentials
+          symlinks: try-secure
+          acls: off

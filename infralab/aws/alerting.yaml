@@ -1,0 +1,158 @@
+# labconf: keyless alert delivery for infralab's Alertmanager, plus a dead
+# man's switch outside the lab. Account 321051512565, us-east-1.
+#
+# Chain (same as cert-manager-dns01.yaml): tbot sidecar in the Alertmanager
+# pod -> X.509 SVID spiffe://teleport.trentonvanderwert.com/infralab/alertmanager
+# -> IAM Roles Anywhere (the existing Teleport SPIFFE trust anchor) -> 1h
+# credentials for labconf-alertmanager -> sns:Publish on the two topics below.
+# No access key exists.
+#
+#   labconf-alerts     every alert (email). The CloudWatch alarm below also
+#                      publishes here.
+#   labconf-heartbeat  Alertmanager sends the always-firing Watchdog alert here
+#                      every ~1-2 minutes. No subscribers. If publishes stop
+#                      for 15 minutes (lab down, internet down, Alertmanager
+#                      or its AWS credentials broken), the alarm emails
+#                      through labconf-alerts.
+#
+# Cost (Price List API, us-east-1, 2026-11): publishes are free up to 1M/month
+# (heartbeat ~22-44k), email deliveries free up to 1,000/month then $2.00 per
+# 100k; the alarm is $0.10/month (free within CloudWatch's 10 alarm metrics).
+# Roles Anywhere, IAM and STS are free.
+#
+# Deploy / update (then confirm the subscription from the email AWS sends):
+#   aws cloudformation deploy --stack-name labconf-alerting \
+#     --template-file infralab/aws/alerting.yaml \
+#     --capabilities CAPABILITY_NAMED_IAM \
+#     --parameter-overrides AlertEmail=<you@example.com>
+# The Roles Anywhere profile's ARN (stack output ProfileArn) goes in
+# argo-apps/monitoring/manifests/tbot-alertmanager.yaml.
+AWSTemplateFormatVersion: "2010-09-09"
+Description: labconf keyless Alertmanager -> SNS email (Teleport Workload Identity + IAM Roles Anywhere) and a heartbeat alarm
+
+Parameters:
+  AlertEmail:
+    Type: String
+    Description: Where alerts go (confirm the subscription email once)
+  TrustAnchorArn:
+    Type: String
+    Default: arn:aws:rolesanywhere:us-east-1:321051512565:trust-anchor/0625cecf-b6ea-4e6a-95bd-992d5771f4f4
+    Description: Teleport's SPIFFE CA (stack labconf-cert-manager-dns01)
+  SpiffeId:
+    Type: String
+    Default: spiffe://teleport.trentonvanderwert.com/infralab/alertmanager
+    Description: The only SPIFFE ID allowed to assume the role
+
+Resources:
+  AlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: labconf-alerts
+      DisplayName: labconf
+
+  AlertsEmail:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref AlertsTopic
+      Protocol: email
+      Endpoint: !Ref AlertEmail
+
+  # Lets the heartbeat alarm publish. (IAM principals in this account,
+  # including the Alertmanager role, are allowed by their own policies.)
+  AlertsTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics: [!Ref AlertsTopic]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: CloudWatchAlarms
+            Effect: Allow
+            Principal:
+              Service: cloudwatch.amazonaws.com
+            Action: sns:Publish
+            Resource: !Ref AlertsTopic
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+
+  HeartbeatTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: labconf-heartbeat
+
+  AlertmanagerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: labconf-alertmanager
+      Description: infralab Alertmanager (sns:Publish to labconf-alerts and labconf-heartbeat only)
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: rolesanywhere.amazonaws.com
+            Action:
+              - sts:AssumeRole
+              - sts:TagSession
+              - sts:SetSourceIdentity
+            Condition:
+              StringEquals:
+                aws:PrincipalTag/x509SAN/URI: !Ref SpiffeId
+              ArnEquals:
+                aws:SourceArn: !Ref TrustAnchorArn
+      Policies:
+        - PolicyName: publish-only
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: sns:Publish
+                Resource:
+                  - !Ref AlertsTopic
+                  - !Ref HeartbeatTopic
+
+  AlertmanagerProfile:
+    Type: AWS::RolesAnywhere::Profile
+    Properties:
+      Name: labconf-alertmanager
+      Enabled: true
+      DurationSeconds: 3600
+      RoleArns:
+        - !GetAtt AlertmanagerRole.Arn
+
+  # Dead man's switch. SNS reports no datapoint for a period without
+  # publishes, so missing data counts as breaching.
+  HeartbeatAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: labconf-alertmanager-heartbeat
+      AlarmDescription: >-
+        No heartbeat from infralab's Alertmanager for 15 minutes: the lab, its
+        internet, Alertmanager, or its AWS credentials (tbot / Teleport) are
+        down. No other lab alert can reach you until it's fixed.
+      Namespace: AWS/SNS
+      MetricName: NumberOfMessagesPublished
+      Dimensions:
+        - Name: TopicName
+          Value: !GetAtt HeartbeatTopic.TopicName
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 3
+      DatapointsToAlarm: 3
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: breaching
+      AlarmActions: [!Ref AlertsTopic]
+      OKActions: [!Ref AlertsTopic]
+
+Outputs:
+  ProfileArn:
+    Value: !GetAtt AlertmanagerProfile.ProfileArn
+  RoleArn:
+    Value: !GetAtt AlertmanagerRole.Arn
+  AlertsTopicArn:
+    Value: !Ref AlertsTopic
+  HeartbeatTopicArn:
+    Value: !Ref HeartbeatTopic

@@ -1,0 +1,55 @@
+# Keyless AWS access for infralab's Alertmanager (SNS alerts + heartbeat):
+#   tbot (sidecar in the Alertmanager pod) joins as bot labconf-alertmanager
+#   -> X.509 SVID spiffe://teleport.trentonvanderwert.com/infralab/alertmanager
+#   -> IAM Roles Anywhere (infralab/aws/alerting.yaml)
+#   -> 1h credentials for role labconf-alertmanager (sns:Publish only).
+# The SPIFFE ID below is the only one that role's trust policy accepts.
+apiVersion: resources.teleport.dev/v1
+kind: TeleportWorkloadIdentityV1
+metadata:
+  name: infralab-alertmanager
+  labels:
+    labconf: alertmanager
+spec:
+  spiffe:
+    id: /infralab/alertmanager
+---
+# May issue only the workload identity above
+apiVersion: resources.teleport.dev/v1
+kind: TeleportRoleV8
+metadata:
+  name: labconf-alertmanager-identity
+spec:
+  allow:
+    workload_identity_labels:
+      labconf: [alertmanager]
+    rules:
+      - resources: [workload_identity]
+        verbs: [list, read]
+---
+apiVersion: resources.teleport.dev/v1
+kind: TeleportBotV1
+metadata:
+  name: labconf-alertmanager
+spec:
+  roles:
+    - labconf-alertmanager-identity
+---
+# tbot's join: Kubernetes JWKS (infralab's signing keys; refresh after a
+# rebuild, like tokens-kube-agents.yaml). The service account is the
+# Alertmanager pod's own (kube-prometheus-stack), where tbot runs as a sidecar
+# (monitoring/values.yaml).
+apiVersion: resources.teleport.dev/v2
+kind: TeleportProvisionToken
+metadata:
+  name: labconf-alertmanager
+spec:
+  roles: [Bot]
+  bot_name: labconf-alertmanager
+  join_method: kubernetes
+  kubernetes:
+    type: static_jwks
+    static_jwks:
+      jwks: '{"keys":[{"use":"sig","kty":"RSA","kid":"h4q7B0myXc5FwDWeH4RnbMmSnXBu3qiugFjskf5HO2M","alg":"RS256","n":"uW2Qg1ZsYER9n1-DoLvAb_e-OAV4WPTRD2qha3KWoeeNZXCU5phzeJSPjrX8dZe5RG0k2oWdYnH2pzGf_1gr_SGoNwepkve8Al6wkLXSov_xyNBxODIbMLugcKYuvfaV3DNgif_VgJc6eKETOP3go0UVY0Zy6IRvzOA8R75Wm4UqOMttAagzwHpUR64yzcZGXgNlN2QVmkr8COyBsPienpJOIO8b8C2587JiCyIbj4ZG5Se93VAK1iTWKHJaC7_7DBNxhDUn-H-tpS9RAd6FenUGs3PZ_Tx6Abo1YfQ4oLLofx-b5xNVJSgTMWipLleTDK0l2DMWTV2pfk4LIRM97Q","e":"AQAB"}]}'
+    allow:
+      - service_account: "monitoring:kube-prometheus-stack-alertmanager"

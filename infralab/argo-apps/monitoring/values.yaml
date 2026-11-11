@@ -54,10 +54,13 @@ kubelet:
         sourceLabels: [__name__]
         regex: (apiserver|etcd|scheduler|workqueue|aggregator|apiextensions|authentication|authorization|field_validation)_.+
 
-# Alertmanager: the chart's default config (every alert to the "null"
-# receiver) until a notification receiver is chosen. Alerts and silences are
-# visible in the Teleport app "alertmanager-infralab". Lab-specific rules:
-# manifests/rules-lab.yaml.
+# Alertmanager -> AWS SNS, keyless (same chain as cert-manager's Route 53
+# access): a tbot sidecar keeps 1h credentials for role labconf-alertmanager
+# in a RAM-only volume; Alertmanager re-reads them for every notification.
+# AWS side: infralab/aws/alerting.yaml. Teleport side:
+# teleport-resources/alertmanager-identity.yaml. Lab-specific rules:
+# manifests/rules-lab.yaml. UI (alerts, silences): Teleport app
+# "alertmanager-infralab".
 alertmanager:
   enabled: true
   service:
@@ -66,6 +69,148 @@ alertmanager:
     annotations:
       teleport.dev/name: alertmanager-infralab
       teleport.dev/port: http-web
+
+  config:
+    global:
+      resolve_timeout: 5m
+    route:
+      receiver: email
+      group_by: [cluster, namespace, alertname]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 12h
+      routes:
+        # Dead man's switch: Watchdog always fires; re-sent every ~1-2 min to
+        # labconf-heartbeat. A CloudWatch alarm emails if it stops.
+        - matchers: ['alertname = "Watchdog"']
+          receiver: heartbeat
+          group_wait: 0s
+          group_interval: 1m
+          repeat_interval: 1m
+        - matchers: ['alertname = "InfoInhibitor"']
+          receiver: "null"
+        # info alerts stay in the UI only
+        - matchers: ['severity = "info"']
+          receiver: "null"
+    # The chart's defaults, per cluster
+    inhibit_rules:
+      - source_matchers: ['severity = "critical"']
+        target_matchers: ['severity =~ "warning|info"']
+        equal: [cluster, namespace, alertname]
+      - source_matchers: ['severity = "warning"']
+        target_matchers: ['severity = "info"']
+        equal: [cluster, namespace, alertname]
+      - source_matchers: ['alertname = "InfoInhibitor"']
+        target_matchers: ['severity = "info"']
+        equal: [cluster, namespace]
+      - target_matchers: ['alertname = "InfoInhibitor"']
+    receivers:
+      - name: "null"
+      - name: email
+        sns_configs:
+          - topic_arn: arn:aws:sns:us-east-1:321051512565:labconf-alerts
+            sigv4:
+              region: us-east-1
+            # SNS email subjects: ASCII, under 100 characters
+            subject: >-
+              [{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}]
+              {{ .CommonLabels.cluster }} {{ .CommonLabels.alertname }}
+            message: |-
+              {{ range .Alerts }}{{ .Status | toUpper }} {{ .Labels.alertname }} ({{ .Labels.cluster }}{{ with .Labels.namespace }}/{{ . }}{{ end }}{{ with .Labels.pod }}/{{ . }}{{ end }})
+              {{ with .Annotations.summary }}{{ . }}
+              {{ end }}{{ with .Annotations.description }}{{ . }}
+              {{ end }}{{ with .Annotations.runbook_url }}Runbook: {{ . }}
+              {{ end }}Since: {{ .StartsAt.Format "2006-01-02 15:04 MST" }}
+
+              {{ end }}
+      - name: heartbeat
+        sns_configs:
+          - topic_arn: arn:aws:sns:us-east-1:321051512565:labconf-heartbeat
+            sigv4:
+              region: us-east-1
+            subject: labconf heartbeat
+            message: Watchdog
+
+  alertmanagerSpec:
+    # Patches the operator's alertmanager container (by name) and adds tbot.
+    # Both run as the pod's user, so Alertmanager can read the 0600 file
+    # tbot writes.
+    containers:
+      - name: alertmanager
+        env:
+          - name: AWS_SHARED_CREDENTIALS_FILE
+            value: /var/run/aws/aws_credentials
+      # --- tbot sidecar: SNS credentials that never leave this pod ---
+      # Joins Teleport as bot labconf-alertmanager with this pod's own service
+      # account token, gets the SVID
+      # spiffe://teleport.trentonvanderwert.com/infralab/alertmanager,
+      # exchanges it with IAM Roles Anywhere for 1h credentials. No Secret,
+      # nothing in etcd. If Teleport is down when the pod restarts, nothing
+      # can be sent; the heartbeat alarm in AWS catches that.
+      - name: tbot
+        # Keep in step with the Teleport cluster version (and cert-manager's)
+        image: public.ecr.aws/gravitational/tbot-distroless:18.11.8
+        args: [start, -c, /config/tbot.yaml, --log-format, json, --diag-addr, "0.0.0.0:3001"]
+        env:
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: KUBERNETES_TOKEN_PATH
+            value: /var/run/secrets/tokens/join-sa-token
+        volumeMounts:
+          - name: tbot-config
+            mountPath: /config
+            readOnly: true
+          - name: join-sa-token
+            mountPath: /var/run/secrets/tokens
+            readOnly: true
+          - name: aws-credentials
+            mountPath: /var/run/aws
+        ports:
+          - name: tbot-diag
+            containerPort: 3001
+        livenessProbe:
+          httpGet:
+            path: /livez
+            port: tbot-diag
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 6
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+          limits:
+            memory: 256Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]
+          readOnlyRootFilesystem: true
+    volumes:
+      # Shared with tbot; RAM only, gone with the pod
+      - name: aws-credentials
+        emptyDir:
+          medium: Memory
+          sizeLimit: 1Mi
+      - name: tbot-config
+        configMap:
+          name: tbot-alertmanager
+      # This pod's service account token, for tbot's Teleport join. Teleport
+      # requires its cluster name as the audience.
+      - name: join-sa-token
+        projected:
+          sources:
+            - serviceAccountToken:
+                path: join-sa-token
+                audience: teleport.trentonvanderwert.com
+                expirationSeconds: 600
+    # Mounted into the alertmanager container
+    volumeMounts:
+      - name: aws-credentials
+        mountPath: /var/run/aws
+        readOnly: true
 
 prometheus-node-exporter:
   prometheus:

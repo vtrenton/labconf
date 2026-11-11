@@ -31,7 +31,7 @@ labs. Access to everything goes through the self-hosted Teleport cluster
 | **`ansible/`** | Bootstrap only: k3s and what must exist before Argo CD (kube-vip, Gateway API CRDs, Cilium, Argo CD), plus day-2 ops playbooks. |
 | **`argo-apps/`** | Everything after bootstrap, for **both** clusters (app-of-apps `root`; pilab's apps come from `pilab/argo-apps/apps` via the `pilab` app). |
 | **`argo-apps/teleport-resources/`** | Teleport roles, join tokens, bots, workload identities, SAML apps and Managed Updates, reconciled by the Teleport operator. |
-| **`aws/`** | The keyless Route 53 access for cert-manager (CloudFormation), in AWS account `321051512565`. |
+| **`aws/`** | Keyless AWS access (CloudFormation), in AWS account `321051512565`: Route 53 for cert-manager, SNS for Alertmanager. |
 | **`../teleport/bootstrap/`** | The operator's own identity (applied once with `tctl`; see `teleport/README.md`). |
 
 ## Repo layout
@@ -39,7 +39,7 @@ labs. Access to everything goes through the self-hosted Teleport cluster
 ```
 infralab/
 ├── autoinstall/            user-data + meta-data (the same for every node)
-├── aws/                    cert-manager-dns01.yaml (Roles Anywhere, IAM role, $5 budget)
+├── aws/                    cert-manager-dns01.yaml (Roles Anywhere, IAM role, $5 budget); alerting.yaml (SNS, heartbeat alarm)
 ├── ansible/
 │   ├── inventory/          hosts.yml; group_vars/all/{cluster,connection,gitops,versions}.yml
 │   ├── playbooks/          cluster.yml; ops/{update-and-reboot,rolling-reboot,reset}.yml
@@ -131,6 +131,7 @@ Kubernetes-JWKS join token has to be refreshed:
 2. In git (`kubectl get --raw /openid/v1/jwks`), commit, push:
    `teleport-resources/tokens-kube-agents.yaml` (`infralab-kube-agent`),
    `cert-manager-identity.yaml` (`labconf-cert-manager`),
+   `alertmanager-identity.yaml` (`labconf-alertmanager`),
    `argocd-access.yaml` (`labconf-argocd`).
 
 ## Networking and DNS
@@ -189,7 +190,7 @@ tbot (sidecar in the cert-manager pod) --Kubernetes JWKS join, SA cert-manager:c
 | SSH on infra1-3 (and the Pis, `labns`) | TPM (`infralab-nodes` / `pilab-nodes` / `labns-node`, one EK hash per node) |
 | Kube agent (`kube,app,discovery`) | Kubernetes JWKS (`infralab-kube-agent`, roles `Kube, App, Discovery`) |
 | Teleport operator (`teleport-iac`) | Kubernetes JWKS, bot `labconf-operator` (bootstrap) |
-| tbot for cert-manager (sidecar) / for Argo CD | Kubernetes JWKS, bots `labconf-cert-manager` / `labconf-argocd` |
+| tbot for cert-manager (sidecar) / Alertmanager (sidecar) / Argo CD | Kubernetes JWKS, bots `labconf-cert-manager` / `labconf-alertmanager` / `labconf-argocd` |
 
 - **Resources as code:** `argo-apps/teleport-resources/` (roles, tokens, bots,
   workload identity, SAML app, Managed Updates). The operator only manages what
@@ -271,9 +272,22 @@ infralab ─ Prometheus (30d, 40GB, local-path) ◀─┘          ▲ UI/API on
   every alert has `cluster`. kube-prometheus-stack's default rules, plus
   `manifests/rules-lab.yaml`: CoreDNS upstream health (CoreDNS reads the
   node's resolv.conf only at startup) and pilab's remote write going quiet.
-- Alertmanager (`alertmanager-infralab`) still routes everything to the
-  chart's `null` receiver: alerts are visible there, nothing is sent.
-  Silences live in its pod (emptyDir) and are lost on restart.
+- **Delivery (keyless, like cert-manager):** a tbot sidecar in the
+  Alertmanager pod (bot `labconf-alertmanager`) keeps 1h credentials for IAM
+  role `labconf-alertmanager` (`aws/alerting.yaml`, stack `labconf-alerting`),
+  which may only publish to two SNS topics. Alertmanager re-reads the
+  credentials file for every notification.
+  - `labconf-alerts`: warning/critical alerts, grouped by cluster, namespace
+    and alert, re-sent every 12h while firing. Email (confirm the
+    subscription once after deploying the stack). `info` alerts stay in the
+    UI (`alertmanager-infralab`).
+  - `labconf-heartbeat`: the always-firing `Watchdog`, every ~1-2 minutes. A
+    CloudWatch alarm emails through `labconf-alerts` after 15 minutes without
+    one, which covers the lab, its internet, Alertmanager and the
+    tbot/Teleport credential chain being down.
+- Silences live in the Alertmanager pod (emptyDir) and are lost on restart.
+- Cost: ~$0.10/month (the alarm; SNS publishes and the first 1,000 emails a
+  month are free).
 
 ## Upgrades
 
