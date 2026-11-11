@@ -1,6 +1,6 @@
 $TTL 86400      ; Default TTL
 @       IN      SOA     labns.labnet.lan. admin.labnet.lan. (
-                        2026110901  ; Serial
+                        2026111101  ; Serial
                         3600        ; Refresh
                         1800        ; Retry
                         604800      ; Expire
@@ -18,6 +18,7 @@ $TTL 86400      ; Default TTL
 15      IN      PTR     kubeworker2.labnet.lan.
 16      IN      PTR     kubeworker3.labnet.lan.
 17      IN      PTR     kubeworker4.labnet.lan.
+151     IN      PTR     hv1.labnet.lan.
 160     IN      PTR     infracluster.labnet.lan.
 161     IN      PTR     infra1.labnet.lan.
 162     IN      PTR     infra2.labnet.lan.
