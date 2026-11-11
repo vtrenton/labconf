@@ -170,6 +170,9 @@ alertmanager:
         ports:
           - name: tbot-diag
             containerPort: 3001
+            # The API default, spelled out: the Alertmanager CRD adds it, and
+            # Argo CD only ignores defaults on built-in types (Deployments)
+            protocol: TCP
         livenessProbe:
           httpGet:
             path: /livez
