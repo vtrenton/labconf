@@ -4,6 +4,7 @@ namespace: monitoring
 resources:
   - httproutes.yaml
   - grafana-rbac.yaml
+  - rules-lab.yaml
 # Dashboards as code: each JSON file becomes a ConfigMap the Grafana sidecar
 # loads. Edit the JSON here, not in the UI.
 configMapGenerator:

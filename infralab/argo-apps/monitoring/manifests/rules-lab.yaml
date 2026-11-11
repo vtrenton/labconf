@@ -1,0 +1,60 @@
+# Lab-specific alerts, on top of kube-prometheus-stack's default rules
+# (which already cover pods stuck NotReady, e.g. the Teleport agents or tbot
+# losing their identity). Evaluated on infralab over both clusters; every
+# alert carries `cluster`.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: lab
+spec:
+  groups:
+    - name: lab.coredns
+      rules:
+        # CoreDNS forwards to the node's resolv.conf, read only at startup.
+        # After a DNS server change it keeps health-checking the old address
+        # (baseline: zero failures).
+        - alert: CoreDNSUpstreamUnhealthy
+          expr: sum by (cluster, to) (rate(coredns_proxy_healthcheck_failures_total[5m])) > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: CoreDNS in {{ $labels.cluster }} can't reach upstream {{ $labels.to }}.
+            description: >-
+              If {{ $labels.to }} is no longer a DNS server, restart CoreDNS
+              (kubectl -n kube-system rollout restart deploy/coredns) so it
+              re-reads the node's resolv.conf.
+        - alert: CoreDNSAllUpstreamsDown
+          expr: sum by (cluster) (rate(coredns_forward_healthcheck_broken_total[5m])) > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: CoreDNS in {{ $labels.cluster }} has no healthy upstream; external names return SERVFAIL.
+            description: >-
+              Pods can't resolve anything outside the cluster (Teleport,
+              GitHub, Let's Encrypt). Check dns1 (10.0.53.11), then restart
+              CoreDNS if its upstream list is stale.
+        - alert: CoreDNSDown
+          expr: sum by (cluster) (up{job="coredns"}) < 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: CoreDNS in {{ $labels.cluster }} isn't being scraped.
+
+    - name: lab.remote-write
+      rules:
+        # pilab's metrics arrive by remote write; if they stop, every pilab
+        # alert silently stops too. Default rules can't see that.
+        - alert: ClusterMetricsMissing
+          expr: absent_over_time(up{cluster="pilab", job="kubelet"}[10m])
+          labels:
+            severity: critical
+          annotations:
+            summary: No metrics from pilab for 10 minutes.
+            description: >-
+              pilab's Prometheus agent isn't remote-writing to infralab (agent
+              down, WAL full, or the route/DNS to
+              prometheus.infra.lab.trentonvanderwert.com broken). No pilab
+              alert can fire until it's fixed.

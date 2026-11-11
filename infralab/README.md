@@ -210,6 +210,7 @@ tbot (sidecar in the cert-manager pod) --Kubernetes JWKS join, SA cert-manager:c
 | `grafana` | Grafana (discovered) | Teleport JWT (`Teleport-Jwt-Assertion`): users created on the fly, `lab-admin` -> Admin, else Viewer |
 | `argocd` | Argo CD server (discovered) | Teleport SAML IdP via Argo CD's bundled Dex; `lab-admin` -> `role:admin`; **no local admin** |
 | `prometheus-infralab` | Prometheus UI + query API (discovered) | none (Teleport gates it) |
+| `alertmanager-infralab` | Alertmanager UI (discovered): firing alerts, silences | none (Teleport gates it) |
 | `hubble-infralab` | Hubble UI (static app) | none |
 | `hubble-pilab` | pilab's Hubble UI (static app on pilab's kube agent) | none |
 
@@ -263,6 +264,16 @@ infralab ─ Prometheus (30d, 40GB, local-path) ◀─┘          ▲ UI/API on
 - The remote-write route is `POST /api/v1/write` only, unauthenticated, on the
   LAN. Prometheus drops batches on 4xx, so when moving that URL, add the new
   route first, switch the agent, then remove the old one.
+
+### Alerting
+
+- Rules are evaluated on infralab over both clusters (the agent can't), so
+  every alert has `cluster`. kube-prometheus-stack's default rules, plus
+  `manifests/rules-lab.yaml`: CoreDNS upstream health (CoreDNS reads the
+  node's resolv.conf only at startup) and pilab's remote write going quiet.
+- Alertmanager (`alertmanager-infralab`) still routes everything to the
+  chart's `null` receiver: alerts are visible there, nothing is sent.
+  Silences live in its pod (emptyDir) and are lost on restart.
 
 ## Upgrades
 

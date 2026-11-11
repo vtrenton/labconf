@@ -13,12 +13,16 @@ kubeProxy:
   enabled: false
 defaultRules:
   rules:
-    alertmanager: false
     etcd: false
     kubeControllerManager: false
     kubeProxy: false
     kubeSchedulerAlerting: false
     kubeSchedulerRecording: false
+  disabled:
+    # pilab's agent has no Alertmanager by design, so this fired for it
+    # forever. For infralab it's undeliverable anyway (it's about not
+    # reaching Alertmanager); Watchdog is the end-to-end check.
+    PrometheusNotConnectedToAlertmanagers: true
 
 # Cardinality (k3s): the kubelet's /metrics endpoint also exposes the embedded
 # apiserver/etcd/scheduler metrics, so the kubelet and apiserver jobs scraped
@@ -50,9 +54,18 @@ kubelet:
         sourceLabels: [__name__]
         regex: (apiserver|etcd|scheduler|workqueue|aggregator|apiextensions|authentication|authorization|field_validation)_.+
 
-# No receivers yet
+# Alertmanager: the chart's default config (every alert to the "null"
+# receiver) until a notification receiver is chosen. Alerts and silences are
+# visible in the Teleport app "alertmanager-infralab". Lab-specific rules:
+# manifests/rules-lab.yaml.
 alertmanager:
-  enabled: false
+  enabled: true
+  service:
+    labels:
+      teleport.dev/app: "true"
+    annotations:
+      teleport.dev/name: alertmanager-infralab
+      teleport.dev/port: http-web
 
 prometheus-node-exporter:
   prometheus:
