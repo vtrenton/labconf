@@ -68,13 +68,10 @@ bypassing it: on the `labns` host, `podman start bind9 unbound` (or
 Its service-account signing keys are new, so every Kubernetes-JWKS join is
 refused until refreshed.
 
-- **infralab:**
-  1. Operator token first (bootstrap):
-     `./teleport/bootstrap/render-operator-token.sh > /tmp/t.yaml && tctl create -f /tmp/t.yaml`
-  2. Then in git, from `kubectl get --raw /openid/v1/jwks`:
-     `tokens-kube-agents.yaml` (`infralab-kube-agent`),
-     `cert-manager-identity.yaml`, `argocd-access.yaml`
-     (all in `infralab/argo-apps/teleport-resources/`). Push.
+- **infralab:** in git, from `kubectl get --raw /openid/v1/jwks`:
+  `tokens-kube-agents.yaml` (`infralab-kube-agent`),
+  `cert-manager-identity.yaml`, `alertmanager-identity.yaml`,
+  `argocd-access.yaml` (all in `teleport/resources/`). Push.
 - **pilab:** update `pilab-kube-agent` in `tokens-kube-agents.yaml`. Push.
   Argo CD reconnects once the agent joins.
 

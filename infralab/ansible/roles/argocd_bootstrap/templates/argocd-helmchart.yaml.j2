@@ -12,7 +12,7 @@ spec:
   createNamespace: true
   valuesContent: |-
     # SSO: "Log in via Teleport" -> Dex -> Teleport SAML IdP (service provider
-    # "argocd", infralab/argo-apps/teleport-resources/argocd-sso.yaml).
+    # "argocd", teleport/resources/argocd-sso.yaml).
     # Teleport roles arrive as groups; lab-admin = role:admin, anyone else gets
     # nothing. No local accounts: the admin user is disabled, so there is no
     # password to attack. Break-glass is cluster access (kubectl), e.g. to

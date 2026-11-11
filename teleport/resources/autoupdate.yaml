@@ -32,7 +32,7 @@ spec:
           wait_hours: 24
 ---
 # Self-hosted: the version agents and client tools converge on. Bump with the
-# Teleport cluster (and the operator/kube-agent chart versions).
+# Teleport cluster (and the kube-agent/tbot chart versions).
 apiVersion: resources.teleport.dev/v1
 kind: TeleportAutoupdateVersionV1
 metadata:

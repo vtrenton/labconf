@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Every Teleport version in this repo must match the target in
-# infralab/argo-apps/teleport-resources/autoupdate.yaml: chart versions,
+# teleport/resources/autoupdate.yaml: chart versions,
 # images, the pilab kube agent and the node bootstrap installers. Bump them
 # together in one commit (teleport/README.md, "Agents and versions").
 #
@@ -13,7 +13,7 @@ cd "$(git rev-parse --show-toplevel)"
 checksums=false
 [ "${1:-}" = --checksums ] && checksums=true
 
-autoupdate=infralab/argo-apps/teleport-resources/autoupdate.yaml
+autoupdate=teleport/resources/autoupdate.yaml
 userdata=infralab/autoinstall/user-data
 pilab_versions=pilab/ansible/inventory/group_vars/all/versions.yml
 pilab_bootstrap=pilab/ansible/roles/node_prep/defaults/main.yml

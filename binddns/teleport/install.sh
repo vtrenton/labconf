@@ -3,7 +3,7 @@
 # Run as root on labns from a copy of this directory:
 #   sh install.sh
 # Idempotent. Prints the TPM identity at the end: its EK hash and serial go
-# into the labns-node token (infralab/argo-apps/teleport-resources/tokens-nodes.yaml).
+# into the labns-node token (teleport/resources/tokens-nodes.yaml).
 # Until that token allows this EK the agent just retries.
 #
 # The version below only bootstraps teleport-update; after that Managed

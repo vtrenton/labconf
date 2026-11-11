@@ -136,7 +136,7 @@ for the UART's Bluetooth node plus blocking `hci_uart`/`btbcm`.
 - **SSH:** `node_prep` (`--tags teleport`) writes `/etc/teleport.yaml` (SSH
   only, label `lab=pilab`, `join_params.method: tpm`, token `pilab-nodes`) and
   installs Teleport with a checksum-pinned `teleport-update` (group `pilab`).
-  The token (in `infralab/argo-apps/teleport-resources/tokens-nodes.yaml`)
+  The token (in `teleport/resources/tokens-nodes.yaml`)
   allows each node's TPM Endorsement Key hash; nothing secret is on the node,
   and the EK survives a reflash, so a rebuilt node rejoins by itself. A new or
   replaced TPM needs its `teleport tpm identify` output added there.
@@ -221,7 +221,7 @@ Argo CD Applications reference paths from the **repo root**, so they use the
 | Concern | Owner | Change it in |
 |---|---|---|
 | Node OS, kernel, boot config, TPM, Wi-Fi off, Teleport SSH agent | Ansible `node_prep` | `roles/node_prep/` |
-| Teleport tokens, roles, Managed Updates | infralab's Teleport operator | `infralab/argo-apps/teleport-resources/` |
+| Teleport tokens, roles, Managed Updates | The Teleport cluster's own operator | `teleport/resources/` |
 | k3s install + config | Ansible `k3s` (first install only) | `group_vars`, `roles/k3s/` |
 | k3s version after install | SUC | `argo-apps/system-upgrade-controller/k3s-plans.yaml` |
 | API VIP | kube-vip, staged by Ansible | `roles/kube_vip/` |
@@ -241,7 +241,7 @@ ansible-playbook playbooks/site.yml           # full build
 ```
 
 Or in stages: `playbooks/prep-nodes.yml`, then `playbooks/cluster.yml`.
-`pilab/argo-apps/` must be pushed to `master` on GitHub before infralab's Argo CD can sync it. After a rebuild, update pilab's JWKS in `infralab/argo-apps/teleport-resources/tokens-kube-agents.yaml` so the kube agent (and with it Argo CD) can connect.
+`pilab/argo-apps/` must be pushed to `master` on GitHub before infralab's Argo CD can sync it. After a rebuild, update pilab's JWKS in `teleport/resources/tokens-kube-agents.yaml` so the kube agent (and with it Argo CD) can connect.
 
 ### What to expect
 

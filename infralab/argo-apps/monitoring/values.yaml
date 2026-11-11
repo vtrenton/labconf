@@ -58,7 +58,7 @@ kubelet:
 # access): a tbot sidecar keeps 1h credentials for role labconf-alertmanager
 # in a RAM-only volume; Alertmanager re-reads them for every notification.
 # AWS side: infralab/aws/alerting.yaml. Teleport side:
-# teleport-resources/alertmanager-identity.yaml. Lab-specific rules:
+# teleport/resources/alertmanager-identity.yaml. Lab-specific rules:
 # manifests/rules-lab.yaml. UI (alerts, silences): Teleport app
 # "alertmanager-infralab".
 alertmanager:

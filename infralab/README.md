@@ -4,9 +4,8 @@ Three Intel mini PCs (4 cores, 16 GB, 512 GB NVMe, TPM 2.0) running Ubuntu
 Server 26.04 minimal, as one HA k3s cluster where every node runs all roles.
 
 infralab is the lab's **deployment and identity gateway**: it runs the only
-Argo CD (deploying to itself and to pilab), the Teleport operator that manages
-Teleport as code, cert-manager, and the central Prometheus/Grafana for both
-labs. Access to everything goes through the self-hosted Teleport cluster
+Argo CD (deploying to itself and to pilab), cert-manager, and the central
+Prometheus/Grafana for both labs. Access to everything goes through the self-hosted Teleport cluster
 (`teleport.aws.trentonvanderwert.com`); nothing in this repo is a secret.
 
 ## At a glance
@@ -30,9 +29,8 @@ labs. Access to everything goes through the self-hosted Teleport cluster
 | **`autoinstall/`** | Everything OS-level, identical on all nodes: disk layout, LUKS + TPM unlock, user, SSH, sudo, packages, hostname-from-DNS, Teleport SSH agent, no unattended upgrades. |
 | **`ansible/`** | Bootstrap only: k3s and what must exist before Argo CD (kube-vip, Gateway API CRDs, Cilium, Argo CD), plus day-2 ops playbooks. |
 | **`argo-apps/`** | Everything after bootstrap, for **both** clusters (app-of-apps `root`; pilab's apps come from `pilab/argo-apps/apps` via the `pilab` app). |
-| **`argo-apps/teleport-resources/`** | Teleport roles, join tokens, bots, workload identities, SAML apps and Managed Updates, reconciled by the Teleport operator. |
 | **`aws/`** | Keyless AWS access (CloudFormation), in AWS account `321051512565`: Route 53 for cert-manager, SNS for Alertmanager. |
-| **`../teleport/bootstrap/`** | The operator's own identity (applied once with `tctl`; see `teleport/README.md`). |
+| **`../teleport/resources/`** | Teleport roles, join tokens, bots, workload identities, SAML apps and Managed Updates, reconciled by the Teleport cluster's own operator (see `teleport/README.md`). |
 
 ## Repo layout
 
@@ -51,7 +49,7 @@ infralab/
     ├── kube-vip-cloud-provider/   LoadBalancer IP pool
     ├── monitoring/         kube-prometheus-stack values; manifests/ (routes, dashboards)
     ├── system-upgrade-controller/ k3s upgrade Plan
-    ├── teleport-operator/ teleport-kube-agent/ tbot-argocd/ teleport-resources/
+    ├── teleport-kube-agent/ tbot-argocd/
     └── (pilab's apps live in pilab/argo-apps/, synced from here)
 ```
 
@@ -127,12 +125,11 @@ Then Argo CD takes over (`root` syncs `argo-apps/apps`). After a **rebuild**,
 the cluster's service-account signing keys (JWKS) are new, and every
 Kubernetes-JWKS join token has to be refreshed:
 
-1. Operator: `./teleport/bootstrap/render-operator-token.sh > /tmp/t.yaml && tctl create -f /tmp/t.yaml`
-2. In git (`kubectl get --raw /openid/v1/jwks`), commit, push:
-   `teleport-resources/tokens-kube-agents.yaml` (`infralab-kube-agent`),
-   `cert-manager-identity.yaml` (`labconf-cert-manager`),
-   `alertmanager-identity.yaml` (`labconf-alertmanager`),
-   `argocd-access.yaml` (`labconf-argocd`).
+In git (`kubectl get --raw /openid/v1/jwks`), commit, push, in
+`teleport/resources/`: `tokens-kube-agents.yaml` (`infralab-kube-agent`),
+`cert-manager-identity.yaml` (`labconf-cert-manager`),
+`alertmanager-identity.yaml` (`labconf-alertmanager`),
+`argocd-access.yaml` (`labconf-argocd`).
 
 ## Networking and DNS
 
@@ -189,11 +186,11 @@ tbot (sidecar in the cert-manager pod) --Kubernetes JWKS join, SA cert-manager:c
 |---|---|
 | SSH on infra1-3 (and the Pis, `labns`) | TPM (`infralab-nodes` / `pilab-nodes` / `labns-node`, one EK hash per node) |
 | Kube agent (`kube,app,discovery`) | Kubernetes JWKS (`infralab-kube-agent`, roles `Kube, App, Discovery`) |
-| Teleport operator (`teleport-iac`) | Kubernetes JWKS, bot `labconf-operator` (bootstrap) |
 | tbot for cert-manager (sidecar) / Alertmanager (sidecar) / Argo CD | Kubernetes JWKS, bots `labconf-cert-manager` / `labconf-alertmanager` / `labconf-argocd` |
 
-- **Resources as code:** `argo-apps/teleport-resources/` (roles, tokens, bots,
-  workload identity, SAML app, Managed Updates). The operator only manages what
+- **Resources as code:** `teleport/resources/` (roles, tokens, bots,
+  workload identity, SAML app, Managed Updates), reconciled by the Teleport
+  cluster's own operator (`teleport/README.md`). It only manages what
   it created (`teleport.dev/origin: kubernetes`); users stay out of git, and
   your local admin is the break-glass.
 - **`lab-admin`** (role): SSH as `sysadmin` (infra) / `admin` (Pis),
@@ -295,7 +292,7 @@ infralab ─ Prometheus (30d, 40GB, local-path) ◀─┘          ▲ UI/API on
 |---|---|
 | k3s | Bump `version` in `argo-apps/system-upgrade-controller/k3s-plans.yaml` **and** `k3s_version` in `versions.yml` (also pilab's), GA only, one minor at a time |
 | Cilium, kube-vip, Gateway API CRDs, Argo CD chart | `versions.yml`, then `cluster.yml --tags <role>`. Gateway API CRDs must match what Cilium supports (Cilium 1.20: v1.6.x). kube-vip: also pilab's `versions.yml`; read the release notes for VIP-sharing or lease changes. |
-| Teleport | Cluster (EKS) first. Then `teleport-resources/autoupdate.yaml`, the chart versions of `teleport-operator`, `teleport-kube-agent`, `tbot-argocd`, the tbot sidecar image in `cert-manager/values.yaml`, pilab's `teleport_kube_agent_chart_version`, and (for fresh installs) the bootstrap version + SHA-256 in `user-data`, pilab's `node_prep` and `binddns/teleport/install.sh`. Agents never newer than the cluster. CI (`scripts/check-teleport-versions.sh`) fails if any of these differ. |
+| Teleport | Cluster (EKS) first. Then `teleport/resources/autoupdate.yaml`, the chart versions of `teleport-kube-agent`, `tbot-argocd`, the tbot sidecar images in `cert-manager/values.yaml` and `monitoring/values.yaml`, pilab's `teleport_kube_agent_chart_version`, and (for fresh installs) the bootstrap version + SHA-256 in `user-data`, pilab's `node_prep` and `binddns/teleport/install.sh`. Agents never newer than the cluster. CI (`scripts/check-teleport-versions.sh`) fails if any of these differ. |
 | SSH agents | Managed Updates: group `infralab`, then `pilab` 24h later, then `labns` (DNS) 24h after that, Mon-Thu 16:00 UTC. For an urgent fix: `tctl autoupdate agents start-update infralab`, then `pilab`, then `labns` (`lab-admin` may). |
 | cert-manager, kube-prometheus-stack | Chart `targetRevision` in their Applications (kube-prometheus-stack in both clusters) |
 

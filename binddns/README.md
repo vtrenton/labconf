@@ -201,7 +201,7 @@ ssh root@10.0.53.11 sh /root/teleport/install.sh
 ```
 
 The script prints `teleport tpm identify`. Put the EK hash and serial in the
-`labns-node` token (`infralab/argo-apps/teleport-resources/tokens-nodes.yaml`)
+`labns-node` token (`teleport/resources/tokens-nodes.yaml`)
 and push; the agent retries until the operator has applied it. The EK is in
 the chip, so a reflash rejoins without touching the token.
 

@@ -1,5 +1,5 @@
 # tbot for the Alertmanager sidecar (monitoring/values.yaml): joins Teleport
-# as bot labconf-alertmanager (teleport-resources/alertmanager-identity.yaml)
+# as bot labconf-alertmanager (teleport/resources/alertmanager-identity.yaml)
 # and keeps 1h AWS credentials for role labconf-alertmanager
 # (infralab/aws/alerting.yaml) in a RAM-only volume shared with Alertmanager.
 # Alertmanager re-reads the file for every SNS notification.
