@@ -1,5 +1,5 @@
 # Teleport SSH agent on labns (installed by install.sh). SSH only; joins with
-# the TPM (token labns-node in teleport/resources allows
+# the TPM (token labns-node in teleport-master/teleport-resources allows
 # this Pi's EK). Login is root only (role labns-admin).
 version: v3
 teleport:

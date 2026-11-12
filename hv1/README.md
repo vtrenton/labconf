@@ -74,7 +74,7 @@ password hash; `fast` holds the VMs.
    shows `hv1`, `tsh apps ls` shows `proxmox-hv1`.
 
 The TPM's EK is fixed hardware, so the `hv1-node` token
-(`teleport/resources/tokens-nodes.yaml`) still matches after a reinstall.
+(`teleport-master/teleport-resources/tokens-nodes.yaml`) still matches after a reinstall.
 If the TPM is cleared or the board replaced, run `teleport tpm identify` on
 the new host and update the token.
 

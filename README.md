@@ -12,7 +12,7 @@ keyless: TPM, Kubernetes service-account and SPIFFE joins through Teleport).
 | [`infralab/`](infralab/README.md) | 3 Intel mini PCs (Ubuntu, unattended install + TPM disk unlock). The **gateway**: the only Argo CD (deploys to every cluster), cert-manager, central Prometheus/Grafana. |
 | [`pilab/`](pilab/README.md) | 7 Raspberry Pi 4s (Debian kernel, k3s, Cilium). Bootstrapped by Ansible; everything else deployed from infralab's Argo CD through Teleport. |
 | [`hv1/`](hv1/README.md) | The Proxmox VE hypervisor (ThinkStation P520): unattended install (`answer.toml`), first-boot setup (key-only SSH, Teleport agent, root and VM storage on LUKS with TPM unlock), ISO builder. Storage for the clusters and a few VMs. |
-| [`teleport/`](teleport/README.md) | Teleport resources as code (`teleport/resources/`), reconciled by the Teleport cluster's own operator. |
+| [`teleport/`](teleport/README.md) | How the labs use Teleport: agents and versions. The Teleport resources themselves (roles, join tokens, bots, Managed Updates) are in the `teleport-master` repo, `teleport-resources/`. |
 | `binddns/` | DNS for every network, on `labns` / dns1 (`10.0.53.11`): Unbound (resolver, IoT allowlist view, DoT to Quad9) in front of BIND (authoritative: `labnet.lan` machines, `wired.lan`, `lab.trentonvanderwert.com` LAN-only service names, reverse zones). Plus its Teleport SSH agent (`binddns/teleport/`). |
 | `kiosk/` | systemd unit for the rack TV (cage + Chromium on the Grafana dashboard). |
 | `scripts/` | `check-teleport-versions.sh`: every Teleport version in the repo matches `autoupdate.yaml` (run in CI). |

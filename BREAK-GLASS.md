@@ -72,7 +72,7 @@ refused until refreshed.
 - **infralab:** in git, from `kubectl get --raw /openid/v1/jwks`:
   `tokens-kube-agents.yaml` (`infralab-kube-agent`),
   `cert-manager-identity.yaml`, `alertmanager-identity.yaml`,
-  `argocd-access.yaml` (all in `teleport/resources/`). Push.
+  `argocd-access.yaml` (all in the `teleport-master` repo, `teleport-resources/`). Push to its deployed branch (`internal_lab`).
 - **pilab:** update `pilab-kube-agent` in `tokens-kube-agents.yaml`. Push.
   Argo CD reconnects once the agent joins.
 

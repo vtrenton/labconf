@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Every Teleport version in this repo must match the target in
-# teleport/resources/autoupdate.yaml: chart versions,
-# images, the pilab kube agent and the node bootstrap installers. Bump them
-# together in one commit (teleport/README.md, "Agents and versions").
+# Every Teleport version in this repo must match the Managed Updates target,
+# which lives in the teleport-master repo (teleport-resources/autoupdate.yaml,
+# fetched from GitHub; branch: $TELEPORT_MASTER_REF, default internal_lab):
+# chart versions, images, the pilab kube agent and the node bootstrap
+# installers. Bump them together in one commit (teleport/README.md, "Agents
+# and versions").
 #
-#   scripts/check-teleport-versions.sh              versions only (offline)
+#   scripts/check-teleport-versions.sh              versions only
 #   scripts/check-teleport-versions.sh --checksums  also verify the bootstrap
 #                                                   SHA-256s against cdn.teleport.dev
 set -euo pipefail
@@ -13,15 +15,20 @@ cd "$(git rev-parse --show-toplevel)"
 checksums=false
 [ "${1:-}" = --checksums ] && checksums=true
 
-autoupdate=teleport/resources/autoupdate.yaml
+autoupdate_src="teleport-master:${TELEPORT_MASTER_REF:-internal_lab}:teleport-resources/autoupdate.yaml"
+autoupdate=$(mktemp)
+trap 'rm -f "$autoupdate"' EXIT
+curl -fsS -o "$autoupdate" \
+  "https://raw.githubusercontent.com/vtrenton/teleport-master/${TELEPORT_MASTER_REF:-internal_lab}/teleport-resources/autoupdate.yaml" ||
+  { echo "could not fetch $autoupdate_src" >&2; exit 1; }
 userdata=infralab/autoinstall/user-data
 pilab_versions=pilab/ansible/inventory/group_vars/all/versions.yml
 pilab_bootstrap=pilab/ansible/roles/node_prep/defaults/main.yml
 labns_install=binddns/teleport/install.sh
 
 target=$(sed -n 's/^ *target_version: *\([0-9.]*\).*/\1/p' "$autoupdate" | head -n1)
-[ -n "$target" ] || { echo "no target_version in $autoupdate" >&2; exit 1; }
-echo "target: $target ($autoupdate)"
+[ -n "$target" ] || { echo "no target_version in $autoupdate_src" >&2; exit 1; }
+echo "target: $target ($autoupdate_src)"
 
 fail=0
 # found <what> <file:line> <version>
@@ -45,7 +52,7 @@ require() {
 n=0
 while IFS=: read -r file line text; do
   found autoupdate_version "$file:$line" "${text##*: }"; n=$((n+1))
-done < <(grep -nE '^ *(start|target)_version:' "$autoupdate" | sed "s|^|$autoupdate:|")
+done < <(grep -nE '^ *(start|target)_version:' "$autoupdate" | sed "s|^|$autoupdate_src:|")
 require autoupdate_version "$n"
 
 # Argo CD Applications using Teleport's chart repo: the targetRevision that
@@ -112,6 +119,6 @@ if $checksums; then
 fi
 
 if [ "$fail" -ne 0 ]; then
-  echo "Teleport versions are out of step with $autoupdate" >&2
+  echo "Teleport versions are out of step with $autoupdate_src" >&2
   exit 1
 fi

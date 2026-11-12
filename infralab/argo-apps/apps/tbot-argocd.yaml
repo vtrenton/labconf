@@ -1,5 +1,5 @@
 # Registers the other clusters with this Argo CD through Teleport (see
-# teleport/resources/argocd-access.yaml).
+# teleport-master/teleport-resources/argocd-access.yaml).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

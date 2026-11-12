@@ -1,6 +1,6 @@
 # Teleport Kubernetes Service for infralab: registers this cluster in Teleport
 # (kube cluster "infralab", label lab=infralab). Joins with the infralab-kube-agent token
-# (Kubernetes JWKS, managed in teleport/resources).
+# (Kubernetes JWKS, managed in teleport-master/teleport-resources).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

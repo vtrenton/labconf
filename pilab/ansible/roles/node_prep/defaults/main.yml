@@ -36,7 +36,7 @@ node_prep_storage_device: /dev/sda
 node_prep_storage_fstype: ext4
 
 # Teleport SSH agent. Joins with the TPM (token pilab-nodes in
-# teleport/resources allows each Pi's EK). The version
+# teleport-master/teleport-resources allows each Pi's EK). The version
 # below only bootstraps teleport-update; after that Managed Updates
 # (group pilab) follow the cluster's autoupdate_version.
 node_prep_teleport_proxy: teleport.aws.trentonvanderwert.com:443
