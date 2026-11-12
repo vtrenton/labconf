@@ -39,23 +39,23 @@ kinds, in that namespace, nothing cluster-scoped: `TeleportRoleV8`,
 
 | File | Resources |
 |---|---|
-| `tokens-nodes.yaml` | `infralab-nodes`, `pilab-nodes`, `labns-node`: TPM joins, one rule per node EK |
+| `tokens-nodes.yaml` | `infralab-nodes`, `pilab-nodes`, `labns-node`, `hv1-node` (`Node, App`): TPM joins, one rule per node EK |
 | `tokens-kube-agents.yaml` | `infralab-kube-agent` (`Kube, App, Discovery`), `pilab-kube-agent` (`Kube, App`): Kubernetes JWKS |
-| `roles.yaml` | `lab-admin`: SSH (`sysadmin`/`admin`), `system:masters` and the apps on `infralab`/`pilab`, driving agent update rollouts. `labns-admin`: SSH as `root` on `labns` only |
+| `roles.yaml` | `lab-admin`: SSH (`sysadmin`/`admin`), `system:masters` and the apps on `infralab`/`pilab`, driving agent update rollouts. `labns-admin`: SSH as `root` on `labns` only. `hv1-admin`: SSH as `root` on `hv1` and its Proxmox UI (app `proxmox-hv1`) |
 | `argocd-access.yaml` | Bot `labconf-argocd` + role `labconf-argocd-deployer` (`system:masters` on `lab: pilab`) + its token: Argo CD reaching pilab |
 | `argocd-sso.yaml` | SAML service provider `argocd` (Teleport as Argo CD's IdP) |
 | `cert-manager-identity.yaml` | Workload identity `infralab-cert-manager` + issuer role + bot `labconf-cert-manager` + token: keyless Route 53 |
 | `alertmanager-identity.yaml` | Workload identity `infralab-alertmanager` + issuer role + bot `labconf-alertmanager` + token: keyless SNS |
-| `autoupdate.yaml` | Managed Updates: groups `infralab`, then `pilab` 24 h later, then `labns` 24 h after that; target version |
+| `autoupdate.yaml` | Managed Updates: groups `infralab`, then `pilab` 24 h later, then `labns`, then `hv1`, each 24 h after the previous; target version |
 
 Users stay out of git. Grant the lab role with
-`tctl users update <user> --set-roles editor,access,lab-admin,labns-admin`.
+`tctl users update <user> --set-roles editor,access,lab-admin,labns-admin,hv1-admin`.
 
 ## Agents and versions
 
 - SSH: infralab nodes install at first boot (`infralab/autoinstall`), Pis via
   `pilab/ansible` (`prep-nodes.yml --tags teleport`), `labns` by hand
-  (`binddns/teleport/install.sh`).
+  (`binddns/teleport/install.sh`), `hv1` at first boot (`hv1/first-boot.sh`).
 - Kube agents: infralab's from Argo CD (`teleport-kube-agent` app), pilab's
   from its Ansible bootstrap (Argo CD connects through it).
 - A Teleport upgrade (the cluster in `teleport-master` first; agents never
@@ -65,7 +65,9 @@ Users stay out of git. Grant the lab role with
   `infralab/argo-apps/monitoring/values.yaml`; pilab's
   `teleport_kube_agent_chart_version`; and, for fresh installs, the bootstrap
   version + SHA-256 in `infralab/autoinstall/user-data`, pilab's `node_prep`
-  defaults and `binddns/teleport/install.sh`.
+  defaults and `binddns/teleport/install.sh`. (`hv1/first-boot.sh` pins
+  nothing: it uses the install script the proxy serves, which installs the
+  cluster's version.)
   Bump them all in one commit; `scripts/check-teleport-versions.sh --checksums`
   (also run in CI) fails if any differs from `autoupdate.yaml` or a SHA-256
   doesn't match Teleport's CDN.

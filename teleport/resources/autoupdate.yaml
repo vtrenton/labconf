@@ -18,7 +18,8 @@ spec:
       regular:
         # infralab first; pilab only after infralab's group succeeded, and at
         # least a day later; labns (the lab's DNS, which everything depends
-        # on) last, another day after pilab
+        # on) another day after pilab; hv1 (the hypervisor) last, a day after
+        # labns
         - name: infralab
           days: ["Mon", "Tue", "Wed", "Thu"]
           start_hour: 16   # UTC
@@ -27,6 +28,10 @@ spec:
           start_hour: 16
           wait_hours: 24
         - name: labns
+          days: ["Mon", "Tue", "Wed", "Thu"]
+          start_hour: 16
+          wait_hours: 24
+        - name: hv1
           days: ["Mon", "Tue", "Wed", "Thu"]
           start_hour: 16
           wait_hours: 24

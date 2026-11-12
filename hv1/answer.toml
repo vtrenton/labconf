@@ -1,0 +1,63 @@
+# Unattended Proxmox VE install for hv1 (ThinkStation P520). prepare-iso.sh
+# embeds this file and first-boot.sh into the installer ISO; the install then
+# needs no input. Format: https://pve.proxmox.com/wiki/Automated_Installation
+#
+# root's password is not here (this repo is public): prepare-iso.sh asks for
+# it and adds only its hash, to the ISO it builds.
+
+[global]
+keyboard = "en-us"
+country = "us"
+fqdn = "hv1.labnet.lan"
+mailto = "root@hv1.labnet.lan"
+timezone = "America/Chicago"
+# Break-glass SSH (keys only, first-boot.sh); day-to-day access is Teleport.
+root-ssh-keys = [
+  "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIOp6OxsKwZpbUm3IAQvTUhrfd/FlWDi72Ene+o3gVHL trent@cerberus",
+]
+reboot-on-error = false
+
+# The address comes from labnet's DHCP reservation (udm-pro-config:
+# hv1 = 1c:a0:b8:77:e7:8a -> 10.0.0.151); the installer writes it statically.
+[network]
+source = "from-dhcp"
+
+# Stable NIC names, by MAC, so adding or moving a card never renames one.
+[network.interface-name-pinning]
+enabled = true
+
+[network.interface-name-pinning.mapping]
+"1c:a0:b8:77:e7:8a" = "nic0" # onboard I219-LM (management, vmbr0)
+"ac:16:2d:9a:18:68" = "nic1" # 82580, 4x 1 GbE
+"ac:16:2d:9a:18:69" = "nic2"
+"ac:16:2d:9a:18:6a" = "nic3"
+"ac:16:2d:9a:18:6b" = "nic4"
+"98:b7:85:26:1a:5e" = "nic5" # X710, 4x 10 GbE
+"98:b7:85:26:1a:5f" = "nic6"
+"98:b7:85:26:1a:60" = "nic7"
+"98:b7:85:26:1a:61" = "nic8"
+
+# rpool: the two 128 GB Patriot P320 NVMes, mirrored. Matched by model, so
+# the 2 TB NVMes (fast) and the SATA disks (bulk, in the storage VM) are
+# never touched.
+#
+# hdsize 118 (of 119.2 GiB) leaves ~1.2 GiB free at the end of each disk,
+# for one reason: first-boot.sh moves the mirror onto LUKS one disk at a time,
+# and the encrypted partition must not come out smaller than the plain one
+# (ZFS won't attach a smaller mirror member; the LUKS header takes 16 MiB).
+# The new partitions span the whole disk and the pool grows into it, so the
+# space is only free until the first boot.
+[disk-setup]
+filesystem = "zfs"
+zfs.raid = "raid1"
+zfs.ashift = 12
+zfs.compress = "on"
+zfs.hdsize = 118
+filter.ID_MODEL = "*P320*"
+
+# first-boot.sh (embedded in the ISO, installed as hv1-setup): key-only SSH,
+# the Teleport agent, rpool onto LUKS with TPM unlock, and the encrypted
+# `fast` pool.
+[first-boot]
+source = "from-iso"
+ordering = "fully-up"

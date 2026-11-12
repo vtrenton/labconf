@@ -68,3 +68,18 @@ spec:
       - description: labns
         ek_public_hash: "cae21fc03998d345e83690d82e4b8e10a4f81fe4b49a6dd635540ee1f4d61e81"
         ek_certificate_serial: "78:6a:33:0f"
+---
+# hv1 (the Proxmox hypervisor, hv1/first-boot.sh): SSH plus the Proxmox UI as
+# app proxmox-hv1, so Node and App. The agent labels both lab: hv1.
+apiVersion: resources.teleport.dev/v2
+kind: TeleportProvisionToken
+metadata:
+  name: hv1-node
+spec:
+  roles: [Node, App]
+  join_method: tpm
+  tpm:
+    allow:
+      - description: hv1
+        ek_public_hash: "17a36d00d98a391961e9df18966758aa9e6031de4f24f9db3752b5d7d866af75"
+        ek_certificate_serial: "3b:6a:8d:59"
