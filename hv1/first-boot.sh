@@ -61,7 +61,7 @@ Signed-By: /usr/share/keyrings/proxmox-archive-keyring.gpg
 CONF
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -q
-  apt-get install -y -q cryptsetup cryptsetup-initramfs clevis clevis-luks clevis-tpm2 clevis-initramfs mokutil gdisk
+  apt-get install -y -q cryptsetup cryptsetup-initramfs clevis clevis-luks clevis-tpm2 clevis-initramfs mokutil gdisk parted
 }
 
 # --- 2. SSH ----------------------------------------------------------------
@@ -325,9 +325,10 @@ MSG
   /usr/local/bin/teleport tpm identify
 }
 
+# Anything but a helper name runs the first-boot setup: Proxmox's first-boot
+# service passes its own argument, and every step checks whether it's done.
 case "${1:-}" in
-  "") first_boot ;;
   add-recovery) add_recovery ;;
   fast-reattach) fast_reattach ;;
-  *) die "usage: hv1-setup [add-recovery|fast-reattach]" ;;
+  *) first_boot ;;
 esac
