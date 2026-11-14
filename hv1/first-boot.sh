@@ -14,7 +14,9 @@
 #
 # First-boot setup, in this order (the risky disk work last, so the host is
 # reachable through Teleport even if it stops):
-#   1. apt: the no-subscription repository; cryptsetup, clevis, mokutil
+#   1. apt: the no-subscription repository; cryptsetup, clevis, mokutil, and
+#      systemd-cryptsetup (Debian 13 ships the /etc/crypttab reader for after
+#      the initramfs separately; without it `fast` never unlocks at boot)
 #   2. SSH: keys only (root's key comes from answer.toml)
 #   3. Teleport agent (SSH + the Proxmox UI as app proxmox-hv1), joined with
 #      the TPM (token hv1-node), installed by the proxy's own install script
@@ -61,7 +63,7 @@ Signed-By: /usr/share/keyrings/proxmox-archive-keyring.gpg
 CONF
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -q
-  apt-get install -y -q cryptsetup cryptsetup-initramfs clevis clevis-luks clevis-tpm2 clevis-initramfs mokutil gdisk parted
+  apt-get install -y -q cryptsetup cryptsetup-initramfs systemd-cryptsetup clevis clevis-luks clevis-tpm2 clevis-initramfs mokutil gdisk parted
 }
 
 # --- 2. SSH ----------------------------------------------------------------
@@ -263,11 +265,14 @@ read_passphrase() { # -> $pass
   printf '%s: ' "$1"; stty -echo; read -r pass; stty echo; echo
   printf 'Again: '; stty -echo; read -r again; stty echo; echo
   [ "$pass" = "$again" ] || die "passphrases differ"
-  [ "${#pass}" -ge 20 ] || die "use at least 20 characters (a password-manager passphrase)"
+  [ -n "$pass" ] || die "empty passphrase"
 }
 
 add_recovery() {
-  read_passphrase "Recovery passphrase (stored only in your password manager)"
+  # Against a disk taken out of the machine this passphrase is the whole
+  # protection (the TPM stays behind): use a random one from your password
+  # manager, not a word or phrase.
+  read_passphrase "Recovery passphrase (random, from your password manager)"
   umask 077
   newkey=$(mktemp -p /run); cur=$(mktemp -p /run)
   trap 'rm -f "$newkey" "$cur"' EXIT
