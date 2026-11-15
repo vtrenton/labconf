@@ -11,7 +11,7 @@ host from git, with one manual step (the recovery passphrase).
 | File | What |
 |---|---|
 | `answer.toml` | Unattended install (declarative): hostname, ZFS mirror on the two P320 NVMes (matched by model, `hdsize` 118), NIC names pinned by MAC, timezone, root's SSH key |
-| `first-boot.sh` | Runs once after install and installs itself as `hv1-setup`: key-only SSH, the Teleport agent, rpool onto LUKS (TPM unlock), the encrypted `fast` pool. Its helpers: `add-recovery`, `fast-reattach` |
+| `first-boot.sh` | Runs once after install and installs itself as `hv1-setup`: key-only SSH, the Teleport agent, the VM network, rpool onto LUKS (TPM unlock), the encrypted `fast` pool. Its helpers: `add-recovery`, `fast-reattach`, `vm-network` |
 | `prepare-iso.sh` | Builds the install ISO from a Proxmox VE ISO, with both files and root's password hash |
 | `ansible/` | Patching (`playbooks/ops/update-and-reboot.yml`), over direct SSH as root |
 
@@ -23,8 +23,18 @@ host from git, with one manual step (the recovery passphrase).
 | `fast` | 2× 2 TB Samsung 980 PRO (PCIe adapter, slot on x4x4x4x4), each one **LUKS** partition → ZFS mirror; Proxmox storage `fast` (VM disks, containers) |
 | `bulk` | 5× 1 TB SATA on controller `00:17.0` (alone in its IOMMU group), passed whole to the storage VM: encrypted RAIDZ2 inside it |
 | `nic0` | onboard I219-LM, `vmbr0`, management |
-| `nic1`-`nic4` | 82580, 4× 1 GbE |
-| `nic5`-`nic8` | X710, 4× 10 GbE |
+| `nic1`-`nic4` | 82580, 4× 1 GbE: `bond0` (LACP, lab-access ports 33-36) under `vmbr1`, the VMs' bridge |
+| `nic5`-`nic8` | X710, 4× 10 GbE: unused until there's a 10 GbE switch |
+
+## VM network
+
+A VM's NIC goes on `vmbr1` with no VLAN tag: that's labnet (`.152`-`.159`),
+untagged on the LAG. `vmbr1` is VLAN-aware, so another network is a VLAN
+tag on the VM's NIC, once the LAG carries it tagged (`udm-pro-config`,
+`switches["lab-access"]`). LACP spreads connections over the four links: up
+to 4 Gbps in total, 1 Gbps per connection, and a lost link only costs
+bandwidth. The host itself has no address on `vmbr1`; management stays on
+`nic0`/`vmbr0`.
 
 ## Encryption
 
@@ -72,7 +82,8 @@ password hash; `fast` holds the VMs.
 5. Reboot. rpool unlocks with no prompt. Then lock the BIOS down again: USB
    boot off, boot menu behind the supervisor password.
 6. Check: `zpool status` (both pools on `/dev/mapper/luks-*`), `tsh ls lab=hv1`
-   shows `hv1`, `tsh apps ls` shows `proxmox-hv1`.
+   shows `hv1`, `tsh apps ls` shows `proxmox-hv1`, `/proc/net/bonding/bond0`
+   shows all four ports with the same aggregator ID.
 
 The TPM's EK is fixed hardware, so the `hv1-node` token
 (`teleport-master/teleport-resources/tokens-nodes.yaml`) still matches after a reinstall.

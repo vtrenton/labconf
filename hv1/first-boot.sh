@@ -11,6 +11,7 @@
 #   hv1-setup fast-reattach    after a reinstall: unlock the existing `fast`
 #                              disks with the recovery passphrase and bring
 #                              the pool back (a new install has a new key)
+#   hv1-setup vm-network       only the VM network step (4, below)
 #
 # First-boot setup, in this order (the risky disk work last, so the host is
 # reachable through Teleport even if it stops):
@@ -23,9 +24,11 @@
 #   3. Teleport agent (SSH + the Proxmox UI as app proxmox-hv1), joined with
 #      the TPM (token hv1-node), installed by the proxy's own install script
 #      (the cluster decides the version; Managed Updates group hv1)
-#   4. rpool onto LUKS, one mirror disk at a time, each TPM-bound (PCR 7:
+#   4. VM network: bond0 (LACP) over the 82580's four ports, under vmbr1, a
+#      VLAN-aware bridge with no host address. Management stays on nic0/vmbr0
+#   5. rpool onto LUKS, one mirror disk at a time, each TPM-bound (PCR 7:
 #      Secure Boot state) before it holds data, so every boot can unlock it
-#   5. fast: LUKS on the 980 PROs, ZFS mirror, Proxmox storage `fast`; its
+#   6. fast: LUKS on the 980 PROs, ZFS mirror, Proxmox storage `fast`; its
 #      key is a file on the (encrypted) root
 #
 # Nothing is wiped that isn't declared here or by answer.toml: rpool is
@@ -137,7 +140,38 @@ CONF
   if $changed; then systemctl restart teleport; else systemctl start teleport; fi
 }
 
-# --- helpers for 4 and 5 -----------------------------------------------------
+# --- 4. VM network ----------------------------------------------------------
+# lab-access ports 33-36 are one LAG with labnet untagged (udm-pro-config
+# switches["lab-access"].lags), so a VM NIC on vmbr1 with no VLAN tag is on
+# labnet. Another VLAN: tag it on the LAG there, then set the VM NIC's tag.
+# Written into /etc/network/interfaces itself (not interfaces.d) so Proxmox
+# lists vmbr1 for VMs; once present it's left alone (edit it in the UI).
+vm_network() {
+  log "VM network: bond0 (LACP: nic1-nic4) -> vmbr1"
+  if grep -q '^iface vmbr1 ' /etc/network/interfaces; then echo "vmbr1 exists"; return 0; fi
+  cat >> /etc/network/interfaces <<'CONF'
+
+auto bond0
+iface bond0 inet manual
+	bond-slaves nic1 nic2 nic3 nic4
+	bond-miimon 100
+	bond-mode 802.3ad
+	bond-xmit-hash-policy layer3+4
+#82580, LACP to lab-access ports 33-36
+
+auto vmbr1
+iface vmbr1 inet manual
+	bridge-ports bond0
+	bridge-stp off
+	bridge-fd 0
+	bridge-vlan-aware yes
+	bridge-vids 2-4094
+#VMs: labnet untagged
+CONF
+  ifreload -a
+}
+
+# --- helpers for 5 and 6 -----------------------------------------------------
 setup_key=/run/hv1-setup.key
 new_setup_key() {
   umask 077
@@ -165,7 +199,7 @@ crypttab_add() { # <name> <device> <keyfile|none> <options>
 
 settle() { udevadm settle; sleep 1; }
 
-# --- 4. rpool onto LUKS ----------------------------------------------------
+# --- 5. rpool onto LUKS ----------------------------------------------------
 rpool_members() { zpool status -P rpool | awk '$1 ~ "^/dev/" {print $1}'; }
 
 encrypt_rpool() {
@@ -222,7 +256,7 @@ crypt_devices() {
 rpool_devices() { crypt_devices luks-rpool; }
 fast_devices() { crypt_devices luks-fast; }
 
-# --- 5. fast ---------------------------------------------------------------
+# --- 6. fast ---------------------------------------------------------------
 fast_disk() { # <serial> -> /dev/disk/by-id/... (whole disk)
   for d in /dev/disk/by-id/nvme-*_"$1"; do [ -e "$d" ] && { echo "$d"; return 0; }; done
   die "no NVMe disk with serial $1"
@@ -321,6 +355,7 @@ first_boot() {
   apt_setup
   ssh_key_only
   teleport_agent
+  vm_network
   encrypt_rpool
   setup_fast
   log "done"
@@ -338,5 +373,6 @@ MSG
 case "${1:-}" in
   add-recovery) add_recovery ;;
   fast-reattach) fast_reattach ;;
+  vm-network) vm_network ;;
   *) first_boot ;;
 esac
