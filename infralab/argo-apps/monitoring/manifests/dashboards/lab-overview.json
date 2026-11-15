@@ -509,7 +509,7 @@
       "gridPos": {
         "x": 0,
         "y": 14,
-        "w": 24,
+        "w": 12,
         "h": 10
       },
       "targets": [
@@ -531,7 +531,7 @@
           "min": 0,
           "max": 100,
           "color": {
-            "mode": "palette-classic"
+            "mode": "palette-classic-by-name"
           },
           "custom": {
             "lineWidth": 2,
@@ -540,6 +540,93 @@
           }
         },
         "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Network by node (in ↑ out ↓)",
+      "description": "Wired NIC throughput of each cluster node: received above zero, sent below. hv1 isn't here yet: its bond, bridges and VMs get their own panel.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 14,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "8 * sum by (cluster, node) (rate(node_network_receive_bytes_total{cluster!=\"hv1\", device=~\"en.*|eth.*\"}[2m]))",
+          "legendFormat": "{{node}}",
+          "refId": "A",
+          "instant": false,
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "8 * sum by (cluster, node) (rate(node_network_transmit_bytes_total{cluster!=\"hv1\", device=~\"en.*|eth.*\"}[2m]))",
+          "legendFormat": "{{node}}",
+          "refId": "B",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bps",
+          "color": {
+            "mode": "palette-classic-by-name"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "axisCenteredZero": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "custom.transform",
+                "value": "negative-Y"
+              },
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "legend": true,
+                  "tooltip": false,
+                  "viz": false
+                }
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "legend": {

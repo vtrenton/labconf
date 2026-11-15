@@ -136,7 +136,8 @@ upgrade guide.
 `prometheus-node-exporter` on `:9100` (installed by `hv1-setup`), scraped by
 infralab's Prometheus as `cluster="hv1"`
 (`infralab/argo-apps/monitoring/manifests/scrape-hosts.yaml`). Alerts:
-`HostDown`, `ZpoolUnhealthy` (rpool or fast not ONLINE), plus the chart's node
+`HostDown`, `ZpoolUnhealthy` (rpool or fast not ONLINE), `BondDegraded` /
+`BondDown` (`bond0` lost some / all of its links), plus the chart's node
 alerts (filesystems, memory, ...). Grafana's Node Exporter dashboards list it
 under cluster `hv1`.
 
