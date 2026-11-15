@@ -13,6 +13,7 @@ host from git, with one manual step (the recovery passphrase).
 | `answer.toml` | Unattended install (declarative): hostname, ZFS mirror on the two P320 NVMes (matched by model, `hdsize` 118), NIC names pinned by MAC, timezone, root's SSH key |
 | `first-boot.sh` | Runs once after install and installs itself as `hv1-setup`: key-only SSH, the Teleport agent, rpool onto LUKS (TPM unlock), the encrypted `fast` pool. Its helpers: `add-recovery`, `fast-reattach` |
 | `prepare-iso.sh` | Builds the install ISO from a Proxmox VE ISO, with both files and root's password hash |
+| `ansible/` | Patching (`playbooks/ops/update-and-reboot.yml`), over direct SSH as root |
 
 ## Layout
 
@@ -93,6 +94,31 @@ ssh root@10.0.0.151 hv1-setup fast-reattach
 | Replace a failed rpool disk | `sgdisk <healthy disk> -R <new disk>; sgdisk -G <new disk>`; LUKS on its partition 3 (`cryptsetup luksFormat`, add the recovery passphrase, `clevis luks bind -d <part> tpm2 '{"pcr_bank":"sha256","pcr_ids":"7"}'`), open it, `zpool replace rpool <old> /dev/mapper/<name>`, add it to `/etc/crypttab` (`luks,discard,initramfs`), `update-initramfs -u -k all`, then `proxmox-boot-tool format <ESP>` and `proxmox-boot-tool init <ESP> grub` |
 | Replace a failed fast disk | Partition, `cryptsetup luksFormat --key-file /etc/cryptsetup-keys.d/fast.key`, add the recovery passphrase, open, `zpool replace fast <old> /dev/mapper/<name>`, add to `/etc/crypttab` (`luks,discard`) |
 | Back up LUKS headers | `cryptsetup luksHeaderBackup <dev> --header-backup-file <file>`, per device, kept off the host |
+
+## Patching
+
+The only thing that upgrades packages (unattended upgrades stay off). From
+`hv1/ansible/`:
+```bash
+ansible-playbook playbooks/ops/update-and-reboot.yml --check   # what's pending
+ansible-playbook playbooks/ops/update-and-reboot.yml           # patch
+```
+It runs `apt full-upgrade` (never plain `upgrade` on Proxmox), reboots only
+when a newer kernel or a Secure Boot chain update is installed (Proxmox stops
+guests cleanly and starts those marked "start at boot"), then checks both
+pools ONLINE, the LUKS units, the Teleport agent and that the TPM still
+unseals each rpool key (`clevis luks pass`, key discarded), and lists guests
+that aren't running.
+
+**Secure Boot chain updates** (`shim*`, `grub*`, `proxmox-grub`, `proxmox-secure-boot*`)
+change PCR 7, so the next boot may stop at the recovery-passphrase prompt.
+The run refuses them unless `-e bootchain_ok=true`: use it when you're at the
+console. If the boot stops at the prompt, type the passphrase; the run then
+fails the TPM check and prints the `clevis luks regen` command for each
+refused device (Operations, above).
+Kernel updates don't change PCR 7. The Teleport agent updates itself
+(Managed Updates, group `hv1`); major Proxmox upgrades follow Proxmox's own
+upgrade guide.
 
 ## Monitoring
 
