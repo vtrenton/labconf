@@ -94,6 +94,15 @@ ssh root@10.0.0.151 hv1-setup fast-reattach
 | Replace a failed fast disk | Partition, `cryptsetup luksFormat --key-file /etc/cryptsetup-keys.d/fast.key`, add the recovery passphrase, open, `zpool replace fast <old> /dev/mapper/<name>`, add to `/etc/crypttab` (`luks,discard`) |
 | Back up LUKS headers | `cryptsetup luksHeaderBackup <dev> --header-backup-file <file>`, per device, kept off the host |
 
+## Monitoring
+
+`prometheus-node-exporter` on `:9100` (installed by `hv1-setup`), scraped by
+infralab's Prometheus as `cluster="hv1"`
+(`infralab/argo-apps/monitoring/manifests/scrape-hosts.yaml`). Alerts:
+`HostDown`, `ZpoolUnhealthy` (rpool or fast not ONLINE), plus the chart's node
+alerts (filesystems, memory, ...). Grafana's Node Exporter dashboards list it
+under cluster `hv1`.
+
 ## Access
 
 | Path | How |

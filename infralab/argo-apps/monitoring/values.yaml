@@ -244,6 +244,9 @@ prometheus:
           - action: replace
             targetLabel: cluster
             replacement: infralab
+      # Hosts outside the clusters (manifests/scrape-hosts.yaml) bring their
+      # own cluster label (e.g. cluster="hv1") instead.
+      - name: host
 
     # pilab's agent pushes to /api/v1/write (exposed on the Gateway, see
     # manifests/httproutes.yaml). Unauthenticated: LAN only.
@@ -255,6 +258,7 @@ prometheus:
     podMonitorSelectorNilUsesHelmValues: false
     ruleSelectorNilUsesHelmValues: false
     probeSelectorNilUsesHelmValues: false
+    scrapeConfigSelectorNilUsesHelmValues: false
 
     retention: 30d
     retentionSize: 40GB

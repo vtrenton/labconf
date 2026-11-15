@@ -58,3 +58,32 @@ spec:
               down, WAL full, or the route/DNS to
               prometheus.infra.lab.trentonvanderwert.com broken). No pilab
               alert can fire until it's fixed.
+
+    - name: lab.hosts
+      rules:
+        # Hosts outside the clusters (scrape-hosts.yaml). Cluster nodes are
+        # covered by the kube rules (KubeNodeNotReady and friends).
+        - alert: HostDown
+          expr: up{job="node-exporter", cluster!~"infralab|pilab"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.node }} isn't answering ({{ $labels.instance }})."
+            description: >-
+              Prometheus can't scrape its node-exporter: the host is down, off
+              the network, or node-exporter stopped. Break-glass access is in
+              BREAK-GLASS.md.
+        # Any ZFS pool not ONLINE (a failed or missing mirror disk shows as
+        # DEGRADED), on any host with node-exporter.
+        - alert: ZpoolUnhealthy
+          expr: node_zfs_zpool_state{state!="online"} > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "ZFS pool {{ $labels.zpool }} on {{ $labels.node }} is {{ $labels.state }}."
+            description: >-
+              Check `zpool status {{ $labels.zpool }}` on the host. For hv1's
+              encrypted pools, the disk replacement steps are in
+              hv1/README.md.

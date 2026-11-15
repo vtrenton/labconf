@@ -268,7 +268,12 @@ infralab ─ Prometheus (30d, 40GB, local-path) ◀─┘          ▲ UI/API on
 - Rules are evaluated on infralab over both clusters (the agent can't), so
   every alert has `cluster`. kube-prometheus-stack's default rules, plus
   `manifests/rules-lab.yaml`: CoreDNS upstream health (CoreDNS reads the
-  node's resolv.conf only at startup) and pilab's remote write going quiet.
+  node's resolv.conf only at startup), pilab's remote write going quiet, and
+  hosts outside the clusters (`HostDown`, `ZpoolUnhealthy`).
+- **Hosts outside the clusters** (`hv1`): node-exporter on the host, scraped
+  by a `ScrapeConfig` (`manifests/scrape-hosts.yaml`, job `node-exporter`,
+  scrape class `host` so they keep their own `cluster` label, e.g. `hv1`).
+  The chart's node alerts and Node Exporter dashboards cover them too.
 - **Delivery (keyless, like cert-manager):** a tbot sidecar in the
   Alertmanager pod (bot `labconf-alertmanager`) keeps 1h credentials for IAM
   role `labconf-alertmanager` (`aws/alerting.yaml`, stack `labconf-alerting`),

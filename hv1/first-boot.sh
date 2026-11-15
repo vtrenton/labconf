@@ -16,7 +16,9 @@
 # reachable through Teleport even if it stops):
 #   1. apt: the no-subscription repository; cryptsetup, clevis, mokutil, and
 #      systemd-cryptsetup (Debian 13 ships the /etc/crypttab reader for after
-#      the initramfs separately; without it `fast` never unlocks at boot)
+#      the initramfs separately; without it `fast` never unlocks at boot);
+#      prometheus-node-exporter (:9100, scraped by infralab's Prometheus:
+#      infralab/argo-apps/monitoring/manifests/scrape-hosts.yaml)
 #   2. SSH: keys only (root's key comes from answer.toml)
 #   3. Teleport agent (SSH + the Proxmox UI as app proxmox-hv1), joined with
 #      the TPM (token hv1-node), installed by the proxy's own install script
@@ -63,7 +65,8 @@ Signed-By: /usr/share/keyrings/proxmox-archive-keyring.gpg
 CONF
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -q
-  apt-get install -y -q cryptsetup cryptsetup-initramfs systemd-cryptsetup clevis clevis-luks clevis-tpm2 clevis-initramfs mokutil gdisk parted
+  apt-get install -y -q cryptsetup cryptsetup-initramfs systemd-cryptsetup clevis clevis-luks clevis-tpm2 clevis-initramfs mokutil gdisk parted \
+    prometheus-node-exporter
 }
 
 # --- 2. SSH ----------------------------------------------------------------

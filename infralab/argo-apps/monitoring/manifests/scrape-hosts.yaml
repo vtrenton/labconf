@@ -1,0 +1,18 @@
+# Hosts outside the clusters, scraped by infralab's Prometheus. Job name
+# node-exporter, like the clusters' own, so the chart's node alerts
+# (filesystems, memory, ...) and Node Exporter dashboards cover them. Scrape
+# class `host`: their own cluster label instead of cluster=infralab.
+# Lab alerts for them: rules-lab.yaml (HostDown, ZpoolUnhealthy).
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: ScrapeConfig
+metadata:
+  name: hosts
+spec:
+  jobName: node-exporter
+  scrapeClass: host
+  staticConfigs:
+    # hv1: Proxmox hypervisor (labconf hv1/; node-exporter from first-boot.sh)
+    - targets: ["10.0.0.151:9100"]
+      labels:
+        cluster: hv1
+        node: hv1
