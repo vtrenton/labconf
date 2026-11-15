@@ -87,3 +87,32 @@ spec:
               Check `zpool status {{ $labels.zpool }}` on the host. For hv1's
               encrypted pools, the disk replacement steps are in
               hv1/README.md.
+        # Network bonds (hv1's bond0: the VMs' LACP group, lab-access ports
+        # 33-36). node-exporter counts a member as active when its link is
+        # up; a link that's up but left out of the LACP group (e.g. the
+        # switch's LAG missing) only shows in /proc/net/bonding/<bond>.
+        - alert: BondDegraded
+          expr: node_bonding_active < node_bonding_slaves and node_bonding_active > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.master }} on {{ $labels.node }} is down to {{ $value }} link(s)."
+            description: >-
+              Traffic still flows over the remaining links, with less
+              bandwidth. `cat /proc/net/bonding/{{ $labels.master }}` on the
+              host shows which member is down; then the cable, the switch port
+              (lab-access 33-36 for hv1), or the NIC.
+        - alert: BondDown
+          expr: node_bonding_active == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.master }} on {{ $labels.node }} has no link up."
+            description: >-
+              Everything on it is off the network: for hv1, every VM on
+              vmbr1. The host itself stays reachable (management is on nic0),
+              so `tsh ssh root@{{ $labels.node }}` and check
+              `/proc/net/bonding/{{ $labels.master }}`, the cables and the
+              switch.
