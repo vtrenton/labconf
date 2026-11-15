@@ -42,3 +42,30 @@ When Teleport, SSO or GitOps isn't available: [BREAK-GLASS.md](BREAK-GLASS.md).
 - Enable the hook once per clone: `git config core.hooksPath .githooks`.
 - `master` requires signed commits (no force-push or deletion).
 - Argo CD syncs from `master` on GitHub: changes take effect after a push.
+
+## Open items
+
+Decided, not built yet. The network side has its own list (`udm-pro-config`,
+OPERATIONS.md, "Open items").
+
+- **Teleport SSH agent installs without version pins.** Managed Updates
+  already update the SSH agents, but fresh installs still pin a version and
+  SHA-256 (`infralab/autoinstall/user-data`, pilab's `node_prep` defaults,
+  `binddns/teleport/install.sh`). Move them to the proxy's install script
+  (`https://teleport.aws.trentonvanderwert.com/scripts/install.sh?group=<group>`),
+  as `hv1/first-boot.sh` does, so no installer or Ansible role picks a
+  version; then drop those pins from `scripts/check-teleport-versions.sh`.
+- **hv1 on the TV.** The lab overview's network graph leaves hv1 out. Its
+  panel waits for VM traffic and shows the dataplane (`bond0`/`vmbr1`, later
+  the X710), not management (`nic0`).
+- **hv1's `bulk` storage VM:** the five SATA SSDs (controller `00:17.0`
+  passed through) as RAIDZ2 in a Debian VM, serving NFS/iSCSI to the
+  clusters over labnet.
+- **VLANs for VMs:** services (`804`) and a non-routed storage VLAN (`805`)
+  are reserved in `udm-pro-config`. Tag them on lab-access's LAG (ports
+  33-36), then per VM NIC on `vmbr1`.
+- **10 GbE dataplane:** with a 10 GbE server switch, the X710 becomes a
+  second bond for east-west and storage traffic; `bond0` stays the VMs'
+  front end. DPDK after that.
+- **DNS:** the `dc` rename (with ExternalDNS) and a dns2, in
+  [binddns/README.md](binddns/README.md#conventions).

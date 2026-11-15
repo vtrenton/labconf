@@ -109,10 +109,10 @@ ssh root@10.0.0.151 hv1-setup fast-reattach
 ## Patching
 
 The only thing that upgrades packages (unattended upgrades stay off). From
-`hv1/ansible/`:
+`hv1/ansible/`, `--check` lists what's pending; without it, it patches:
 ```bash
-ansible-playbook playbooks/ops/update-and-reboot.yml --check   # what's pending
-ansible-playbook playbooks/ops/update-and-reboot.yml           # patch
+ansible-playbook playbooks/ops/update-and-reboot.yml --check
+ansible-playbook playbooks/ops/update-and-reboot.yml
 ```
 It runs `apt full-upgrade` (never plain `upgrade` on Proxmox), reboots only
 when a newer kernel or a Secure Boot chain update is installed (Proxmox stops

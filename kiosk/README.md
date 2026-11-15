@@ -49,4 +49,16 @@ sudo systemctl enable --now kiosk.service
 It takes over `tty1` (`Conflicts=getty@tty1.service`) and restarts every 5 s
 if Chromium or cage exits. Logs: `journalctl -u kiosk`.
 
+## Changing the dashboard
+
+The dashboard is code:
+`infralab/argo-apps/monitoring/manifests/dashboards/lab-overview.json` (edit
+it there, not in the UI). After the push, Argo CD syncs it within a few
+minutes, but Chromium keeps the layout it loaded (the 30 s refresh only
+reloads data), so restart the kiosk once it's in Grafana:
+
+```
+sudo systemctl restart kiosk
+```
+
 The TV Pi is not managed by Ansible or Teleport.
