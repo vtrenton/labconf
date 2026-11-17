@@ -13,7 +13,7 @@ keyless: TPM, Kubernetes service-account and SPIFFE joins through Teleport).
 | [`pilab/`](pilab/README.md) | 7 Raspberry Pi 4s (Debian kernel, k3s, Cilium). Bootstrapped by Ansible; everything else deployed from infralab's Argo CD through Teleport. |
 | [`hv1/`](hv1/README.md) | The Proxmox VE hypervisor (ThinkStation P520): unattended install (`answer.toml`), first-boot setup (key-only SSH, Teleport agent, root and VM storage on LUKS with TPM unlock), ISO builder. Storage for the clusters and a few VMs. |
 | [`teleport/`](teleport/README.md) | How the labs use Teleport: agents and versions. The Teleport resources themselves (roles, join tokens, bots, Managed Updates) are in the `teleport-master` repo, `teleport-resources/`. |
-| `binddns/` | DNS for every network, on `labns` / dns1 (`10.0.53.11`): Unbound (resolver, IoT allowlist view, DoT to Quad9) in front of BIND (authoritative: `labnet.lan` machines, `wired.lan`, `lab.trentonvanderwert.com` LAN-only service names, reverse zones). Plus its Teleport SSH agent (`binddns/teleport/`). |
+| `binddns/` | DNS for every network, on `labns` / dns1 (`10.0.53.11`) and dns2 (`10.0.53.12`, BIND a secondary of dns1's): Unbound (resolver, IoT allowlist view, DoT to Quad9) in front of BIND (authoritative: `labnet.lan` machines, `wired.lan`, `lab.trentonvanderwert.com` LAN-only service names, reverse zones). Plus its Teleport SSH agent (`binddns/teleport/`). |
 | `kiosk/` | systemd unit for the rack TV (cage + Chromium on the Grafana dashboard). |
 | `scripts/` | `check-teleport-versions.sh`: every Teleport version in the repo matches `autoupdate.yaml` (run in CI). |
 | `.githooks/`, `.github/` | Secret scanning (a fail-closed gitleaks pre-commit hook and a gitleaks CI workflow) and the Teleport version check in CI. |
@@ -55,6 +55,9 @@ OPERATIONS.md, "Open items").
   (`https://teleport.aws.trentonvanderwert.com/scripts/install.sh?group=<group>`),
   as `hv1/first-boot.sh` does, so no installer or Ansible role picks a
   version; then drop those pins from `scripts/check-teleport-versions.sh`.
+- **dns2 has no Teleport agent.** No TPM, so no TPM join like dns1; it's
+  reached by break-glass SSH from home only (`BREAK-GLASS.md`). Needs a TPM
+  HAT or another join method.
 - **hv1 on the TV.** The lab overview's network graph leaves hv1 out. Its
   panel waits for VM traffic and shows the dataplane (`bond0`/`vmbr1`, later
   the X710), not management (`nic0`).

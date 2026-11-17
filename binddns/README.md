@@ -1,9 +1,15 @@
 # binddns
 
-DNS for every network in the house, on **dns1** (`10.0.53.11`, the DNS
-network, VLAN 853, USW port 48), a Raspberry Pi 4 named `labns` in DNS and
-Teleport (until the `dc` rename). The network side (VLANs, DHCP, firewall,
-its reservation) is in the `udm-pro-config` repo; this directory is the host.
+DNS for every network in the house, on two Raspberry Pi 4s in the DNS
+network (VLAN 853), both in every network's DHCP DNS:
+
+| Host | Address | Switch port | OS | BIND | Teleport |
+|---|---|---|---|---|---|
+| **dns1** (`labns` in DNS and Teleport until the `dc` rename) | `10.0.53.11` | home-access 48 | Ubuntu Server, root only | primary: the zone files live here | agent (TPM) |
+| **dns2** | `10.0.53.12` | lab-access 48 | Raspberry Pi OS, `admin` + sudo | secondary of dns1, transfers every zone | none (no TPM): break-glass SSH only |
+
+Unbound is identical on both. The network side (VLANs, DHCP, firewall,
+reservations) is in the `udm-pro-config` repo; this directory is the hosts.
 
 Two containers, both `--network host`, config mounted from the host's
 `/bind/`:
@@ -16,7 +22,7 @@ clients (every network) :53 ─▶ Unbound ─┬─ local zones ──▶ BIND 
 | Container | Start | Config | Job |
 |---|---|---|---|
 | `unbound` | `unboundcmd` | `unbound/unbound.conf` → `/bind/unbound/` | The resolver: access per network, the IoT allowlist view, ad blocking (RPZ) for home/wireless/guest, DNSSEC validation, DoT upstream, stub zones to BIND |
-| `bind9` | `bindcmd` | `config/named.conf` → `/bind/config/`, `zones/` → `/bind/zones/` | Authoritative for the local zones only: no recursion, localhost only (port 5300, not 5353: that's mDNS) |
+| `bind9` | `bindcmd` | dns1: `config/named.conf` → `/bind/config/`, `zones/` → `/bind/zones/`. dns2: `config/named.dns2.conf` → `/bind/config/named.conf`, no zone files (transferred into `/bind/cache/`) | Authoritative for the local zones only: no recursion, port 5300 (not 5353: that's mDNS). Localhost for Unbound; dns1 also on `10.0.53.11` for dns2 only (SOA, transfers), dns2 also on `10.0.53.12` for dns1's NOTIFYs |
 
 Host networking matters: with port publishing (`-p 53:53`) Unbound would see
 the container gateway instead of the client, and the per-network rules below
@@ -93,6 +99,10 @@ switch to DNS-over-HTTPS by itself and bypass this resolver.
 
 ## Changing a zone or the allowlist
 
+Zones change on **dns1 only**: dns1 sends dns2 a NOTIFY on every serial bump
+and dns2 transfers the zone within seconds. Unbound files
+(`unbound.conf`, the allowlist, the adblock exceptions) go to **both** hosts.
+
 1. Edit the zone and **bump its serial** (`YYYYMMDDNN`; must increase), or
    edit `unbound/iot-allowlist.conf` / `unbound/adblock-allow.rpz`.
 2. Check it (off-host via `nix shell nixpkgs#bind nixpkgs#unbound`, or on the
@@ -110,19 +120,23 @@ switch to DNS-over-HTTPS by itself and bypass this resolver.
    directories (`/var/cache/bind`, `/etc/unbound`, the anchor); check a copy
    with those paths pointed at a temp dir, or on dns1 with the image:
    `podman run --rm -v /bind/unbound:/etc/unbound --entrypoint unbound-checkconf docker.io/alpinelinux/unbound:latest-aarch64`.
-3. Commit, copy the changed file(s) to the host's `/bind/zones/`,
-   `/bind/config/` or `/bind/unbound/`, and apply:
+3. Commit, copy the changed file(s) to dns1's `/bind/zones/` or
+   `/bind/config/`, or to `/bind/unbound/` on **both** hosts, and apply:
 
    ```
-   podman exec bind9 rndc reload        # zones / named.conf
-   podman restart unbound               # unbound.conf / iot-allowlist.conf / adblock-allow.rpz
+   podman exec bind9 rndc reload        # zones / named.conf (dns1)
+   podman restart unbound               # unbound.conf / iot-allowlist.conf / adblock-allow.rpz (both; sudo on dns2)
    ```
 
-4. Confirm the served serial matches the repo:
+4. Confirm both serve the repo's serial:
 
    ```
    dig +short SOA labnet.lan @10.0.53.11
+   dig +short SOA labnet.lan @10.0.53.12
    ```
+
+   dns2 behind? `sudo podman logs bind9 | grep -i transfer` on dns2, or
+   force it: `sudo podman exec bind9 rndc retransfer labnet.lan`.
 
 ## Install on a fresh Pi
 
@@ -179,15 +193,59 @@ wireless keep (UDM resolver, public DNS).
    dig @10.0.53.11 -x 10.0.0.161
    dig @10.0.53.11 example.com
    dig @10.0.53.11 dnssec-failed.org             # SERVFAIL: validation works
-   dig @10.0.53.11 metrics.abbott                # NXDOMAIN from home (ad blocking);
+   dig @10.0.53.11 smetrics.abbott               # NXDOMAIN from home (ad blocking);
                                                  # resolves from labnet (not filtered)
    ```
 
    Reboot once and check again: both containers must come back on their own.
 
+## Install dns2
+
+Raspberry Pi OS (64-bit), user `admin` with your key and passwordless sudo,
+DHCP on `eth0` (its reservation is `10.0.53.12`, lab-access port 48). dns1
+must be up: dns2 gets its zones from it.
+
+1. **Host** (as `admin`). There is no systemd-resolved; NetworkManager owns
+   `resolv.conf`, so it's told to leave it alone:
+
+   ```
+   sudo apt install podman dnsutils
+   sudo systemctl enable podman-restart.service
+   printf '[main]\ndns=none\n' | sudo tee /etc/NetworkManager/conf.d/90-dns-none.conf
+   sudo systemctl reload NetworkManager
+   sudo rm /etc/resolv.conf
+   printf 'nameserver 127.0.0.1\nnameserver 9.9.9.9\n' | sudo tee /etc/resolv.conf
+   sudo mkdir -p /bind/config /bind/unbound /bind/cache /var/lib/unbound
+   sudo chown 100:101 /bind/cache /var/lib/unbound
+   ```
+
+   `/bind/cache` holds the transferred zones and belongs to the BIND image's
+   `bind` user (uid 100, gid 101), like `/var/lib/unbound` for Unbound's.
+
+2. **Config** (from a checkout of this repo; no zone files):
+
+   ```
+   scp config/named.dns2.conf admin@10.0.53.12:named.conf
+   scp -r unbound bindcmd unboundcmd admin@10.0.53.12:
+   ssh admin@10.0.53.12 'sudo install -m 644 named.conf /bind/config/ && sudo cp unbound/* /bind/unbound/ && sudo install -m 644 bindcmd unboundcmd /bind/ && rm -r named.conf unbound bindcmd unboundcmd'
+   ```
+
+3. **Start**, from a directory that exists (`cd /`; conmon fails otherwise):
+
+   ```
+   sudo sh /bind/bindcmd
+   sudo podman logs bind9 | grep 'Transfer status'   # success, once per zone
+   sudo sh /bind/unboundcmd
+   ```
+
+4. **Check:** the dig list above against `10.0.53.12`, plus
+   `dig +short -x 10.0.53.12 @10.0.53.12` (`dns2.labnet.lan.`). Reboot once
+   and check again.
+
 ## Teleport (SSH)
 
-`labns` runs a Teleport SSH agent (`teleport/`), managed by hand like the rest
+`labns` (dns1) runs a Teleport SSH agent (`teleport/`); dns2 has no TPM and
+no agent, managed by hand like the rest
 of this host, not by Ansible. It joins with the Pi's TPM 2.0 (token
 `labns-node`, one EK rule) and has label `lab: labns`. The only login is
 `root` (role `labns-admin`, granted on its own so `lab-admin` never gets root
@@ -232,11 +290,8 @@ on 22 for exactly this) stays the break-glass path (`BREAK-GLASS.md`).
   already points at the Gateway, and the wildcard certificate covers it.
 - An explicit name under a wildcard hides the wildcard for everything beneath
   it (e.g. adding `foo.infra` makes `*.infra` stop matching `x.foo.infra`).
-- ExternalDNS (with the `dc` rename, not before): BIND also listens on
-  `10.0.53.11:5300` for RFC2136 updates with a TSIG key, `allow-update` /
-  `allow-transfer` only on the zone ExternalDNS owns. Unbound can't take
-  updates, so they go to BIND directly; the UDM needs labnet → dns on 5300
-  (`udm-pro-config`).
-- A future dns2: its own `access-control`-identical Unbound, BIND as a
-  secondary (`allow-transfer` / `also-notify` here), and `10.0.53.12` in the
-  networks' DHCP DNS (`udm-pro-config`).
+- ExternalDNS (with the `dc` rename, not before): dns1's BIND already
+  listens on `10.0.53.11:5300` (for dns2); add RFC2136 updates with a TSIG
+  key, `allow-update` only on the zone ExternalDNS owns. dns2 gets the
+  updates by NOTIFY. Unbound can't take updates, so they go to BIND
+  directly; the UDM needs labnet → dns on 5300 (`udm-pro-config`).

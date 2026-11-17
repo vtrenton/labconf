@@ -1,6 +1,6 @@
 $TTL 86400      ; Default TTL
 @       IN      SOA     labns.labnet.lan. admin.labnet.lan. (
-                        2026111101  ; Serial
+                        2026111701  ; Serial
                         3600        ; Refresh
                         1800        ; Retry
                         604800      ; Expire
@@ -13,6 +13,7 @@ $TTL 86400      ; Default TTL
 gateway         IN      A       10.0.0.1
 labns           IN      A       10.0.53.11      ; DNS network (VLAN 853), not labnet
 dns1            IN      A       10.0.53.11      ; same host (the network plan's name)
+dns2            IN      A       10.0.53.12      ; DNS network, secondary (Raspberry Pi OS)
 kubemaster1     IN      A       10.0.0.11
 kubemaster2     IN      A       10.0.0.12
 kubemaster3     IN      A       10.0.0.13

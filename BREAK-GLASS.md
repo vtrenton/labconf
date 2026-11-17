@@ -14,6 +14,7 @@ on your workstation or in your password manager.
 | SSH to Pis | `ssh -i ~/.ssh/id_rsa admin@10.0.0.1{1..7}` |
 | SSH to `hv1` (hypervisor) | `ssh root@10.0.0.151` from wired or wireless (OpenSSH, your key; passwords are off). Its web UI: `https://10.0.0.151:8006` |
 | SSH to `labns` / dns1 (DNS) | `ssh root@10.0.53.11` from the **wired LAN** (OpenSSH, your key; root is its only account). The DNS network accepts only DNS, plus SSH from Wired for exactly this |
+| SSH to dns2 (DNS) | `ssh -i ~/.ssh/id_rsa admin@10.0.53.12` from the **wired LAN** (OpenSSH, sudo). Its only way in: no Teleport agent (no TPM) |
 | A lost kubeconfig | On any server: `sudo cat /etc/rancher/k3s/k3s.yaml`, then replace `127.0.0.1` with the VIP |
 | Teleport itself | Your local Teleport admin user (outside git, never operator-managed) |
 
