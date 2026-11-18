@@ -70,6 +70,9 @@ CONF
   apt-get update -q
   apt-get install -y -q cryptsetup cryptsetup-initramfs systemd-cryptsetup clevis clevis-luks clevis-tpm2 clevis-initramfs mokutil gdisk parted \
     prometheus-node-exporter
+  # Recommended through node-exporter-collectors -> ipmitool. The P520 has no
+  # BMC, so its init script fails every boot (NodeSystemdServiceFailed).
+  apt-get purge -y -q openipmi
 }
 
 # --- 2. SSH ----------------------------------------------------------------
