@@ -2,11 +2,13 @@
 
 # Fresh installs / new nodes only. Running nodes are upgraded by the SUC Plan
 # in infralab/argo-apps/system-upgrade-controller; bump this in the same commit.
-k3s_version: "v1.36.6+k3s1"
+k3s_version: "v1.37.2+k3s1"
 
 kube_vip_version: "v1.3.1"
 
 # Cilium upgrades: one minor at a time, then re-stage with --tags cilium.
+# Cilium 1.20 is e2e tested on Kubernetes 1.33-1.36; running it on 1.37 is a
+# deliberate choice (latest stable k3s) until Cilium 1.21 GA adds 1.37.
 cilium_version: "1.20.5"
 
 # Must match what cilium_version supports (Cilium 1.20: v1.6.3).
