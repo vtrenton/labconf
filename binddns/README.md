@@ -97,96 +97,85 @@ Blocked names answer `NXDOMAIN`. To switch a network on or off, edit its
 every client (`local-zone … always_nxdomain`), which tells Firefox not to
 switch to DNS-over-HTTPS by itself and bypass this resolver.
 
+## Ansible (`ansible/`)
+
+Both hosts are managed from `binddns/ansible/`, separate from the clusters'
+Ansible. It connects over plain SSH from home (dns1 as `root`, dns2 as
+`admin` with sudo, both your `id_rsa`), never through Teleport, so it works
+when DNS is down. Load the key first (`ansible-configure.sh`).
+
+```
+cd binddns/ansible
+ansible-playbook playbooks/site.yml --check --diff   # what would change
+ansible-playbook playbooks/site.yml                  # apply (both hosts)
+ansible-playbook playbooks/site.yml -l dns2          # one host
+ansible-playbook playbooks/ops/update-and-reboot.yml # patch (only path for upgrades)
+```
+
+- **`site.yml`**: the whole host from this directory: packages, `resolv.conf`
+  (below), `podman-restart`, `/bind`, the config files (zones on dns1 only),
+  and the containers (created from `bindcmd`/`unboundcmd` when missing or
+  when the script changed). It checks the config with `named-checkconf -z`
+  and `unbound-checkconf` before anything reloads, then reloads only what
+  changed (`rndc reconfig`/`reload`, or an Unbound restart). One host at a
+  time, dns2 first, each must answer before the next; at the end, dns2 must
+  serve dns1's serial for every zone.
+- **`ops/update-and-reboot.yml`**: `apt full-upgrade`, reboot only for a
+  newer kernel (of the running flavour), one host at a time and only while
+  the other one answers. Unattended upgrades are off.
+- Not in Ansible: the OS install, the account and key (below), dns1's
+  Teleport agent (`teleport/install.sh`).
+
+Host settings live in `inventory/host_vars/` (which `named.conf`, primary or
+secondary); the zone list in `inventory/group_vars/all/dns.yml` must match
+`named.conf`, `named.dns2.conf` and the stub-zones in `unbound.conf`.
+
 ## Changing a zone or the allowlist
 
 Zones change on **dns1 only**: dns1 sends dns2 a NOTIFY on every serial bump
 and dns2 transfers the zone within seconds. Unbound files
-(`unbound.conf`, the allowlist, the adblock exceptions) go to **both** hosts.
+(`unbound.conf`, the allowlist, the adblock exceptions) go to **both** hosts;
+`site.yml` does both.
 
-1. Edit the zone and **bump its serial** (`YYYYMMDDNN`; must increase), or
+1. Edit the zone and **bump its serial** (`YYYYMMDDNN`; must increase: the
+   playbook stops if a changed zone's serial isn't above the served one), or
    edit `unbound/iot-allowlist.conf` / `unbound/adblock-allow.rpz`.
-2. Check it (off-host via `nix shell nixpkgs#bind nixpkgs#unbound`, or on the
-   host):
+2. Optionally check it off-host first (`nix shell nixpkgs#bind`):
 
    ```
    named-checkzone labnet.lan zones/db.labnet.lan
-   named-checkzone wired.lan zones/db.wired.lan
-   named-checkzone lab.trentonvanderwert.com zones/db.lab.trentonvanderwert.com
-   named-checkzone 0.0.10.in-addr.arpa zones/10.0.0.rev
-   named-checkzone 53.0.10.in-addr.arpa zones/10.0.53.rev
    ```
 
-   `named-checkconf` / `unbound-checkconf` fail off-host on missing
-   directories (`/var/cache/bind`, `/etc/unbound`, the anchor); check a copy
-   with those paths pointed at a temp dir, or on dns1 with the image:
-   `podman run --rm -v /bind/unbound:/etc/unbound --entrypoint unbound-checkconf docker.io/alpinelinux/unbound:latest-aarch64`.
-3. Commit, copy the changed file(s) to dns1's `/bind/zones/` or
-   `/bind/config/`, or to `/bind/unbound/` on **both** hosts, and apply:
-
-   ```
-   podman exec bind9 rndc reload        # zones / named.conf (dns1)
-   podman restart unbound               # unbound.conf / iot-allowlist.conf / adblock-allow.rpz (both; sudo on dns2)
-   ```
-
-4. Confirm both serve the repo's serial:
-
-   ```
-   dig +short SOA labnet.lan @10.0.53.11
-   dig +short SOA labnet.lan @10.0.53.12
-   ```
-
-   dns2 behind? `sudo podman logs bind9 | grep -i transfer` on dns2, or
-   force it: `sudo podman exec bind9 rndc retransfer labnet.lan`.
+3. Commit, then `ansible-playbook playbooks/site.yml --diff`.
+4. dns2 behind anyway? `sudo podman logs bind9 | grep -i transfer` on dns2,
+   or force it: `sudo podman exec bind9 rndc retransfer labnet.lan`.
 
 ## Install on a fresh Pi
 
-The Pi gets `10.0.53.11` from its DHCP reservation (udm-pro-config) on USW
-port 48. Until this is done no network has DNS except the bypasses home and
-wireless keep (UDM resolver, public DNS).
+Until dns1 answers, no network has DNS except the bypasses home and wireless
+keep (UDM resolver, public DNS). dns2 needs dns1 up: it transfers its zones
+from it.
 
-1. **OS:** Ubuntu Server (arm64), DHCP on `eth0`, root login by SSH key only
-   (root is the only account). Then, as root:
+1. **OS**, by hand:
+   - **dns1:** Ubuntu Server (arm64), DHCP on `eth0` (reservation
+     `10.0.53.11`, home-access port 48), root login by SSH key only; root is
+     the only account.
+   - **dns2:** Raspberry Pi OS (64-bit), DHCP on `eth0` (reservation
+     `10.0.53.12`, lab-access port 48), user `admin` with your key and
+     passwordless sudo. The rule goes in `/etc/sudoers.d/`, not
+     `/etc/sudoers`: sudo applies the last match, and `%sudo ... ALL` comes
+     after anything added above it.
 
-   ```
-   apt install podman
-   systemctl enable podman-restart.service           # starts --restart=always containers at boot
-   systemctl disable --now systemd-resolved          # frees :53 for Unbound
-   rm /etc/resolv.conf
-   printf 'nameserver 127.0.0.1\nnameserver 9.9.9.9\n' > /etc/resolv.conf
-   mkdir -p /bind/cache /var/lib/unbound && chown 100:101 /var/lib/unbound
-   ```
+     ```
+     echo 'admin ALL=(ALL) NOPASSWD: ALL' | sudo tee /etc/sudoers.d/010_admin-nopasswd
+     sudo chmod 440 /etc/sudoers.d/010_admin-nopasswd
+     ```
 
-   `/var/lib/unbound` holds the cached blocklist and belongs to the image's
-   `unbound` user (uid 100, gid 101). The `resolv.conf` keeps the host (and
-   its Teleport agent) resolving when Unbound is down; see Teleport below.
-
-2. **Config** (from a checkout of this repo):
-
-   ```
-   scp -r binddns/config binddns/zones binddns/unbound binddns/bindcmd binddns/unboundcmd root@10.0.53.11:/bind/
-   ```
-
-3. **Start** (both `--restart=always`):
+2. **Everything else:** `ansible-playbook playbooks/site.yml -l <host>`.
+3. **dns1's Teleport agent:** see Teleport (SSH) below.
+4. **Check** from a home machine (`site.yml` checks the first three):
 
    ```
-   sh /bind/bindcmd
-   sh /bind/unboundcmd
-   podman logs unbound      # no errors; "start of service"
-   ```
-
-   The Unbound image's entrypoint does the rest at every start:
-   `unbound-anchor` on `/etc/unbound/root.key` (DNSSEC trust anchor), the
-   `unbound-control` keys, and `chown -R unbound /etc/unbound` (so
-   `/bind/unbound` ends up owned by uid 100; the generated `*.key`/`*.pem`
-   stay on the host, never in git). After changing `bindcmd`/`unboundcmd`,
-   recreate: `podman rm -f bind9 unbound`, then step 3.
-
-4. **Teleport agent:** see Teleport (SSH) below.
-
-5. **Check** on the host, then from a home machine:
-
-   ```
-   dig +short SOA labnet.lan @127.0.0.1 -p 5300   # BIND directly
    dig @10.0.53.11 gateway.wired.lan
    dig @10.0.53.11 kubemaster1.labnet.lan
    dig @10.0.53.11 x.infra.lab.trentonvanderwert.com
@@ -197,56 +186,29 @@ wireless keep (UDM resolver, public DNS).
                                                  # resolves from labnet (not filtered)
    ```
 
-   Reboot once and check again: both containers must come back on their own.
+   The same against `10.0.53.12`. Reboot once and check again: both
+   containers must come back on their own.
 
-## Install dns2
+What the playbook sets up, and why:
 
-Raspberry Pi OS (64-bit), user `admin` with your key and passwordless sudo,
-DHCP on `eth0` (its reservation is `10.0.53.12`, lab-access port 48). dns1
-must be up: dns2 gets its zones from it.
-
-1. **Host** (as `admin`). There is no systemd-resolved; NetworkManager owns
-   `resolv.conf`, so it's told to leave it alone:
-
-   ```
-   sudo apt install podman dnsutils
-   sudo systemctl enable podman-restart.service
-   printf '[main]\ndns=none\n' | sudo tee /etc/NetworkManager/conf.d/90-dns-none.conf
-   sudo systemctl reload NetworkManager
-   sudo rm /etc/resolv.conf
-   printf 'nameserver 127.0.0.1\nnameserver 9.9.9.9\n' | sudo tee /etc/resolv.conf
-   sudo mkdir -p /bind/config /bind/unbound /bind/cache /var/lib/unbound
-   sudo chown 100:101 /bind/cache /var/lib/unbound
-   ```
-
-   `/bind/cache` holds the transferred zones and belongs to the BIND image's
-   `bind` user (uid 100, gid 101), like `/var/lib/unbound` for Unbound's.
-
-2. **Config** (from a checkout of this repo; no zone files):
-
-   ```
-   scp config/named.dns2.conf admin@10.0.53.12:named.conf
-   scp -r unbound bindcmd unboundcmd admin@10.0.53.12:
-   ssh admin@10.0.53.12 'sudo install -m 644 named.conf /bind/config/ && sudo cp unbound/* /bind/unbound/ && sudo install -m 644 bindcmd unboundcmd /bind/ && rm -r named.conf unbound bindcmd unboundcmd'
-   ```
-
-3. **Start**, from a directory that exists (`cd /`; conmon fails otherwise):
-
-   ```
-   sudo sh /bind/bindcmd
-   sudo podman logs bind9 | grep 'Transfer status'   # success, once per zone
-   sudo sh /bind/unboundcmd
-   ```
-
-4. **Check:** the dig list above against `10.0.53.12`, plus
-   `dig +short -x 10.0.53.12 @10.0.53.12` (`dns2.labnet.lan.`). Reboot once
-   and check again.
+- **`resolv.conf`** is hand-written: `127.0.0.1`, then `9.9.9.9`. Unbound
+  needs `:53` (dns1: systemd-resolved off; dns2: NetworkManager `dns=none`),
+  and the host (and dns1's Teleport agent) keeps resolving when Unbound is
+  down; see Teleport below.
+- **`/bind/cache`** (BIND: managed keys; dns2's transferred zones) and
+  **`/var/lib/unbound`** (the cached blocklist) belong to the images' users,
+  uid 100, gid 101.
+- The Unbound image's entrypoint does the rest at every start:
+  `unbound-anchor` on `/etc/unbound/root.key` (DNSSEC trust anchor), the
+  `unbound-control` keys, and `chown -R unbound /etc/unbound`. The generated
+  `*.key`/`*.pem` stay on the host, never in git.
+- Containers start from `/` (`chdir`): conmon fails if the working directory
+  is gone.
 
 ## Teleport (SSH)
 
-`labns` (dns1) runs a Teleport SSH agent (`teleport/`); dns2 has no TPM and
-no agent, managed by hand like the rest
-of this host, not by Ansible. It joins with the Pi's TPM 2.0 (token
+`labns` (dns1) runs a Teleport SSH agent (`teleport/`), installed by its own
+script, not by Ansible; dns2 has no TPM and no agent. It joins with the Pi's TPM 2.0 (token
 `labns-node`, one EK rule) and has label `lab: labns`. The only login is
 `root` (role `labns-admin`, granted on its own so `lab-admin` never gets root
 anywhere else). Managed Updates group `labns`, a day after `pilab`.

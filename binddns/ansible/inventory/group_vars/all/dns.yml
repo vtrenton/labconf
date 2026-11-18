@@ -1,0 +1,24 @@
+# Where the repo's files are, relative to this directory's playbooks/.
+binddns_dir: "{{ playbook_dir }}/../.."
+
+# The zones dns1 serves (zone name -> file in binddns/zones/). Must match the
+# zone blocks in config/named.conf and config/named.dns2.conf, and the
+# stub-zones in unbound/unbound.conf.
+bind_zones:
+  labnet.lan: db.labnet.lan
+  wired.lan: db.wired.lan
+  lab.trentonvanderwert.com: db.lab.trentonvanderwert.com
+  0.0.10.in-addr.arpa: 10.0.0.rev
+  53.0.10.in-addr.arpa: 10.0.53.rev
+
+# The Unbound files from binddns/unbound/. Unbound's entrypoint also writes
+# root.key and the unbound-control keys there; those stay on the host.
+unbound_files:
+  - unbound.conf
+  - iot-allowlist.conf
+  - adblock-allow.rpz
+
+# uid/gid of `bind` in ubuntu/bind9 and `unbound` in alpinelinux/unbound:
+# both 100:101. On the hosts that's systemd-network (dns1) / dhcpcd (dns2).
+container_uid: 100
+container_gid: 101

@@ -1,0 +1,6 @@
+# Raspberry Pi OS; admin with passwordless sudo. BIND is a secondary of dns1
+# and gets the zones by transfer, so no zone files are copied here.
+ansible_user: admin
+ansible_become: true
+bind_role: secondary
+bind_named_conf: named.dns2.conf

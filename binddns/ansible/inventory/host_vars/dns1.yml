@@ -1,0 +1,4 @@
+# Ubuntu Server; root is the only account. The primary: zone files live here.
+ansible_user: root
+bind_role: primary
+bind_named_conf: named.conf

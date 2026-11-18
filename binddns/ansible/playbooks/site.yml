@@ -1,0 +1,305 @@
+# site.yml - dns1 and dns2 from this repo: host setup, BIND and Unbound
+# config, the two containers. Safe to re-run: it changes only what differs
+# from the repo, then reloads only what that change needs.
+#
+#   ansible-playbook playbooks/site.yml                 # both hosts
+#   ansible-playbook playbooks/site.yml --check --diff  # what would change
+#   ansible-playbook playbooks/site.yml -l dns2         # one host
+#
+# One host at a time, dns2 first, and each must answer before the next one
+# starts, so the house never loses both servers to a bad change. Zones change
+# on dns1 only; dns2 transfers them (NOTIFY). A changed zone file must carry a
+# higher serial, or dns2 would never pick it up: the run stops if it doesn't.
+#
+# Not here: the Teleport agent on dns1 (teleport/install.sh, Managed Updates)
+# and package updates (ops/update-and-reboot.yml).
+- name: DNS hosts
+  hosts: dns
+  order: reverse_inventory
+  serial: 1
+  any_errors_fatal: true
+
+  tasks:
+    - name: Refresh the package lists (daily at most)
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 86400
+      changed_when: false
+
+    - name: Packages
+      ansible.builtin.apt:
+        name: [podman, bind9-dnsutils]
+
+    - name: Gather services
+      ansible.builtin.service_facts:
+
+    # Unbound binds :53 on every address. Ubuntu's stub resolver holds
+    # 127.0.0.53:53; Raspberry Pi OS has none, but NetworkManager rewrites
+    # resolv.conf.
+    - name: systemd-resolved off (frees :53)
+      ansible.builtin.systemd_service:
+        name: systemd-resolved
+        enabled: false
+        state: stopped
+      when: ansible_facts.services['systemd-resolved.service'].status | default('not-found') != 'not-found'
+
+    - name: NetworkManager leaves resolv.conf alone
+      ansible.builtin.copy:
+        dest: /etc/NetworkManager/conf.d/90-dns-none.conf
+        content: |
+          # Managed by labconf binddns/ansible: resolv.conf is hand-written.
+          [main]
+          dns=none
+        owner: root
+        group: root
+        mode: '0644'
+      when: ansible_facts.services['NetworkManager.service'].status | default('not-found') != 'not-found'
+      notify: Reload NetworkManager
+
+    - name: Look at resolv.conf
+      ansible.builtin.stat:
+        path: /etc/resolv.conf
+      register: resolv
+
+    - name: resolv.conf is a plain file, not a link to a resolver stub
+      ansible.builtin.file:
+        path: /etc/resolv.conf
+        state: absent
+      when: resolv.stat.islnk | default(false)
+
+    # The host (and dns1's Teleport agent) keeps resolving when Unbound is
+    # down: 127.0.0.1 refuses, glibc moves on to Quad9 (README, Teleport).
+    - name: resolv.conf
+      ansible.builtin.copy:
+        dest: /etc/resolv.conf
+        content: |
+          nameserver 127.0.0.1
+          nameserver 9.9.9.9
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: podman-restart starts the --restart=always containers at boot
+      ansible.builtin.systemd_service:
+        name: podman-restart.service
+        enabled: true
+
+    - name: Directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+      loop: [/bind, /bind/config, /bind/zones]
+
+    # BIND writes here: managed keys (both), transferred zones (dns2).
+    # Unbound keeps its cached blocklist in /var/lib/unbound.
+    - name: Directories the containers write to
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ container_uid }}"
+        group: "{{ container_gid }}"
+        mode: '0755'
+      loop: [/bind/cache, /var/lib/unbound]
+
+    - name: Unbound config directory (its entrypoint chowns it)
+      ansible.builtin.file:
+        path: /bind/unbound
+        state: directory
+        owner: "{{ container_uid }}"
+        group: "{{ container_gid }}"
+        mode: '0755'
+
+    - name: Container start scripts
+      ansible.builtin.copy:
+        src: "{{ binddns_dir }}/{{ item }}"
+        dest: "/bind/{{ item }}"
+        owner: root
+        group: root
+        mode: '0644'
+      loop: [bindcmd, unboundcmd]
+      register: cmds
+
+    - name: named.conf
+      ansible.builtin.copy:
+        src: "{{ binddns_dir }}/config/{{ bind_named_conf }}"
+        dest: /bind/config/named.conf
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Reload BIND
+
+    # --- zones (dns1 only) -------------------------------------------------
+
+    - name: Serials BIND serves now
+      ansible.builtin.command: dig +short +time=2 +tries=1 SOA {{ item.key }} @127.0.0.1 -p 5300
+      loop: "{{ bind_zones | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+      register: served
+      changed_when: false
+      failed_when: false
+      check_mode: false
+      when: bind_role == 'primary'
+
+    - name: Zone files
+      ansible.builtin.copy:
+        src: "{{ binddns_dir }}/zones/{{ item.value }}"
+        dest: "/bind/zones/{{ item.value }}"
+        owner: root
+        group: root
+        mode: '0644'
+      loop: "{{ bind_zones | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+      register: zones
+      when: bind_role == 'primary'
+      notify: Reload BIND
+
+    - name: Every changed zone has a higher serial than the one served
+      ansible.builtin.assert:
+        that: new | int > old | int
+        fail_msg: >-
+          {{ item.item.key }}: the file changed but its serial ({{ new }}) isn't
+          above the served one ({{ old }}). Bump it (YYYYMMDDNN), or dns2 never
+          transfers the change. The file is already copied; BIND isn't reloaded.
+        quiet: true
+      vars:
+        new: "{{ lookup('file', binddns_dir ~ '/zones/' ~ item.item.value) | regex_search('(\\d+)\\s*;\\s*Serial', '\\1') | first }}"
+        old: "{{ (served.results | selectattr('item.key', 'eq', item.item.key) | first).stdout.split()[2] | default(0) }}"
+      loop: "{{ zones.results | default([]) }}"
+      loop_control:
+        label: "{{ item.item.key | default('') }}"
+      when: bind_role == 'primary' and item.changed | default(false) and not ansible_check_mode
+
+    # --- unbound ----------------------------------------------------------
+
+    - name: Unbound config
+      ansible.builtin.copy:
+        src: "{{ binddns_dir }}/unbound/{{ item }}"
+        dest: "/bind/unbound/{{ item }}"
+        owner: "{{ container_uid }}"
+        group: "{{ container_gid }}"
+        mode: '0644'
+      loop: "{{ unbound_files }}"
+      notify: Restart Unbound
+
+    # --- check before anything reloads ------------------------------------
+    # The running daemons still have the old config in memory. If a check
+    # fails, the run stops here and nothing is reloaded, but the bad file is
+    # on disk: fix it in the repo and re-run before the host reboots.
+
+    - name: BIND config and zones are valid
+      ansible.builtin.command:
+        argv: [podman, run, --rm, --network, none,
+               -v, /bind/config/named.conf:/etc/bind/named.conf:ro,
+               -v, /bind/zones/:/etc/bind/zones:ro,
+               --entrypoint, named-checkconf,
+               docker.io/ubuntu/bind9:latest, -z, /etc/bind/named.conf]
+        chdir: /
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Unbound config is valid
+      ansible.builtin.command:
+        argv: [podman, run, --rm, --network, none,
+               -v, /bind/unbound/:/etc/unbound/:ro,
+               --entrypoint, unbound-checkconf,
+               docker.io/alpinelinux/unbound:latest-aarch64]
+        chdir: /
+      changed_when: false
+      when: not ansible_check_mode
+
+    # --- containers -------------------------------------------------------
+
+    - name: Which containers exist
+      ansible.builtin.command: podman container exists {{ item }}
+      loop: [bind9, unbound]
+      register: exists
+      changed_when: false
+      failed_when: exists.rc not in [0, 1]
+      check_mode: false
+
+    # A container is (re)created from its start script when it's missing or
+    # the script changed; that also picks up the new config, so the reload
+    # handlers have nothing left to do (harmless if they run anyway).
+    - name: Create the containers
+      ansible.builtin.shell: |
+        podman rm -f {{ item.name }} >/dev/null 2>&1 || true
+        sh /bind/{{ item.cmd }}
+      args:
+        chdir: /   # conmon fails if the working directory is gone
+      loop:
+        - { name: bind9, cmd: bindcmd }
+        - { name: unbound, cmd: unboundcmd }
+      loop_control:
+        label: "{{ item.name }}"
+      when: >-
+        (exists.results | selectattr('item', 'eq', item.name) | first).rc != 0
+        or (cmds.results | selectattr('item', 'eq', item.cmd) | first).changed
+
+    - name: Apply config changes now
+      ansible.builtin.meta: flush_handlers
+
+    # --- does it answer ---------------------------------------------------
+
+    # After a restart Unbound has :53 open about 10 s before it answers (it
+    # loads the ~400k-entry blocklist first), so retry rather than wait for
+    # the port.
+    - name: Answers from here (home)
+      ansible.builtin.command: dig +short +time=3 +tries=1 {{ item }} @{{ ansible_host }}
+      loop: [kubemaster1.labnet.lan, gateway.wired.lan, example.com]
+      register: answers
+      retries: 12
+      delay: 5
+      until: answers.rc == 0 and answers.stdout | length > 0
+      changed_when: false
+      check_mode: false
+      delegate_to: localhost
+      become: false
+
+  handlers:
+    - name: Reload NetworkManager
+      ansible.builtin.systemd_service:
+        name: NetworkManager
+        state: reloaded
+
+    - name: Reload BIND
+      ansible.builtin.shell: podman exec bind9 rndc reconfig && podman exec bind9 rndc reload
+      args:
+        chdir: /
+
+    - name: Restart Unbound
+      ansible.builtin.command: podman restart unbound
+      args:
+        chdir: /
+
+# After both: dns1 may have reloaded zones after dns2's turn, so check here
+# that dns2 transferred them (NOTIFY, within seconds).
+- name: dns2 serves dns1's serials
+  hosts: dns2
+  gather_facts: false
+
+  tasks:
+    - name: Serials match dns1 (dns2 has every transfer)
+      ansible.builtin.shell: |
+        set -u
+        bad=0
+        for z in {{ bind_zones.keys() | join(' ') }}; do
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            p=$(dig +short +time=2 SOA "$z" @{{ hostvars.dns1.ansible_host }} | awk '{print $3}')
+            s=$(dig +short +time=2 SOA "$z" @{{ hostvars.dns2.ansible_host }} | awk '{print $3}')
+            [ -n "$p" ] && [ "$p" = "$s" ] && break
+            sleep 3
+          done
+          echo "$z dns1=$p dns2=$s"
+          [ -n "$p" ] && [ "$p" = "$s" ] || bad=1
+        done
+        exit $bad
+      register: serials
+      changed_when: false
+      check_mode: false
+      delegate_to: localhost
+      become: false

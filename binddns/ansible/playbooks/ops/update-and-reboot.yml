@@ -1,0 +1,115 @@
+# update-and-reboot.yml - patch dns1 and dns2 (apt full-upgrade) and reboot
+# only when a newer kernel is installed. One host at a time, dns2 first, and
+# never while the other server isn't answering: the house always has DNS.
+# This playbook is the only thing that upgrades packages: unattended
+# upgrades are kept off (enforced below).
+#
+#   ansible-playbook playbooks/ops/update-and-reboot.yml           # patch
+#   ansible-playbook playbooks/ops/update-and-reboot.yml --check   # report only
+#
+# Not here: the Teleport agent on dns1 (Managed Updates, group labns) and the
+# container images (`:latest`, pulled when a container is recreated).
+- name: Update the DNS hosts and reboot if required
+  hosts: dns
+  order: reverse_inventory
+  serial: 1
+  gather_facts: false
+  any_errors_fatal: true
+
+  vars:
+    other: "{{ (groups.dns | difference([inventory_hostname])) | first }}"
+
+  tasks:
+    - name: The other server answers (this one may go down)
+      ansible.builtin.command: dig +short +time=3 +tries=3 kubemaster1.labnet.lan @{{ hostvars[other].ansible_host }}
+      register: peer
+      changed_when: false
+      failed_when: peer.rc != 0 or peer.stdout | length == 0
+      check_mode: false
+      delegate_to: localhost
+      become: false
+
+    - name: Keep this playbook the only thing that upgrades packages
+      ansible.builtin.copy:
+        dest: /etc/apt/apt.conf.d/99-labconf-no-unattended-upgrades
+        content: |
+          // Managed by labconf. Package updates happen only through
+          // binddns/ansible/playbooks/ops/update-and-reboot.yml.
+          APT::Periodic::Unattended-Upgrade "0";
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Refresh the package lists
+      ansible.builtin.apt:
+        update_cache: true
+      changed_when: false
+
+    - name: List what a full-upgrade would install
+      ansible.builtin.command: apt-get -s full-upgrade
+      register: simulate
+      changed_when: false
+      check_mode: false
+
+    - name: Collect pending packages
+      ansible.builtin.set_fact:
+        pending: "{{ simulate.stdout | regex_findall('(?m)^Inst (\\S+)') }}"
+
+    - name: Show pending packages
+      ansible.builtin.debug:
+        msg: "{{ (pending | length) }} to upgrade: {{ pending | join(' ') if pending else 'nothing' }}"
+
+    - name: Full upgrade
+      ansible.builtin.apt:
+        upgrade: dist
+      when: pending | length > 0
+
+    # Both Pis keep several kernel flavours side by side (Raspberry Pi OS:
+    # -rpi-v8 and -rpi-2712; Ubuntu: one per version, -raspi), so compare
+    # only kernels of the running one's flavour (the part after the last -).
+    - name: Compare the running kernel with the newest installed one
+      ansible.builtin.shell: |
+        set -eu
+        running=$(uname -r)
+        flavour=${running##*-}
+        newest=$(ls -1 /lib/modules | grep -- "-$flavour\$" | sort -V | tail -n1)
+        echo "$running $newest"
+        if [ "$running" != "$newest" ] || [ -e /var/run/reboot-required ]; then echo reboot; fi
+      register: kernel
+      changed_when: false
+      check_mode: false
+
+    - name: Report the reboot decision
+      ansible.builtin.debug:
+        msg: >-
+          {{ 'Reboot (running/newest: ' ~ kernel.stdout_lines[0] ~ ')' if 'reboot' in kernel.stdout_lines
+             else 'No reboot needed' }}
+
+    - name: Reboot
+      ansible.builtin.reboot:
+        reboot_timeout: 600
+        msg: "Rebooting after updates (labconf binddns update-and-reboot.yml)"
+      when: "'reboot' in kernel.stdout_lines"
+
+    - name: Both containers running
+      ansible.builtin.command: podman inspect -f '{{ '{{' }}.State.Running{{ '}}' }}' bind9 unbound
+      args:
+        chdir: /
+      register: running
+      retries: 12
+      delay: 5
+      until: running.rc == 0 and running.stdout_lines | unique == ['true']
+      changed_when: false
+      check_mode: false
+
+    - name: This server answers again
+      ansible.builtin.command: dig +short +time=3 +tries=3 {{ item }} @{{ ansible_host }}
+      loop: [kubemaster1.labnet.lan, example.com]
+      register: answers
+      retries: 12
+      delay: 5
+      until: answers.rc == 0 and answers.stdout | length > 0
+      changed_when: false
+      check_mode: false
+      delegate_to: localhost
+      become: false
