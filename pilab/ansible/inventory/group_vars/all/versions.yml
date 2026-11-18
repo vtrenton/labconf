@@ -2,15 +2,15 @@
 
 # Fresh installs / new nodes only. Running nodes are upgraded by the SUC Plans
 # in pilab/argo-apps/system-upgrade-controller; bump this in the same commit.
-k3s_version: "v1.36.5+k3s1"
+k3s_version: "v1.36.6+k3s1"
 
 kube_vip_version: "v1.3.1"
 
 # Cilium upgrades: one minor at a time, then re-stage with --tags cilium.
-cilium_version: "1.20.4"
+cilium_version: "1.20.5"
 
 # Traefik and its Gateway API CRDs are bundled with k3s and follow k3s_version
-# (v1.36.5+k3s1 ships Traefik 3.7.13, Gateway API v1.6.1).
+# (v1.36.6+k3s1 ships Traefik 3.7.15, Gateway API v1.6.3).
 
 # Teleport kube agent chart: keep in step with the Teleport cluster version
 # (and infralab's autoupdate-version). Re-stage with --tags teleport_kube_agent.

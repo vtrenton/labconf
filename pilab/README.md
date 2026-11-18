@@ -37,7 +37,7 @@ one device tree overlay.
 | Virtual address bits | `CONFIG_ARM64_VA_BITS=39` | `52` | `cilium-envoy` crashes at start: tcmalloc assumes a 48-bit address space |
 
 - Cilium lists `CONFIG_DEBUG_INFO_BTF=y` as a requirement from 1.19.x on:
-  [system_requirements.rst (v1.20.4)](https://github.com/cilium/cilium/blob/v1.20.4/Documentation/operations/system_requirements.rst).
+  [system_requirements.rst (v1.20.5)](https://github.com/cilium/cilium/blob/v1.20.5/Documentation/operations/system_requirements.rst).
   1.18 doesn't list it, but pinning an old Cilium only delays the problem.
 - The Envoy crash is the still-open
   [cilium/proxy#1027 "cilium-envoy failing on RPi4 + RaspbianOS"](https://github.com/cilium/proxy/issues/1027).
